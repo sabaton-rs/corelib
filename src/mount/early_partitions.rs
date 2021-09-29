@@ -1,0 +1,303 @@
+use std::{
+    ffi::{CStr, CString},
+    io::Error,
+    os::unix::prelude::OsStrExt,
+    path::{Path, PathBuf},
+};
+
+use crate::fstab::*;
+use sabaton_hal::bootloader::BootControl;
+use libc::CSTOPB;
+use crate::uevent::{*};
+use walkdir::WalkDir;
+
+macro_rules! c_str {
+    ($s:expr) => {{
+        concat!($s, "\0").as_ptr() as *const std::os::raw::c_char
+    }};
+}
+
+/// The location of the fstab
+pub const FSTAB_LOCATION: &str = "/etc/fstab";
+
+/// Mount all the partitions that are marked for early mount
+pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std::io::Error> {
+    let fstab_contents = std::fs::read_to_string(FSTAB_LOCATION)?;
+    let root_temp_mount = CString::new("/new_root").unwrap();
+
+    let suffix = boot_hal.partition_suffix(boot_hal.current_slot()?)?;
+    let mut fstab_entries = FsEntry::parse_entries(&fstab_contents, &suffix)?;
+
+    let mut socket = create_and_bind_netlink_socket().unwrap();
+
+    log::debug!("Fstab entries:{:?}", fstab_entries);
+    let root_cmp = CString::new("/").unwrap();
+
+    if let Some(root) = fstab_entries.iter_mut().find(|e| e.mountpoint == root_cmp) {
+        if !root.is_first_stage_mount() {
+            log::error!("/ is not marked for first stage mount");
+        } else {
+            let mut count = 5;
+            while count > 0 {
+                if let Ok(_) = ensure_mount_device_is_created(root.fs_spec.as_c_str(), &mut socket) { 
+                    log::info!("early mount devices created");
+                    break;
+                } else {
+                    log::info!("early mount devices not ready. will retry {} more time(s)", count);
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    count -= 1;
+                }
+            }
+            //ensure_mount_device_is_created(root.fs_spec.as_c_str(), &mut socket)?;
+            log::debug!("/dev paths created!");
+            // mount the root partition, but into /mnt/system for now. We will make this the new
+            // root later
+            root.mountpoint = root_temp_mount.clone();
+            mount_partition(root)?;
+            // switch it back so we won't attempt to mount it again
+            root.mountpoint = root_cmp.clone();
+            
+        }
+    } else {
+        log::error!("Could not find '/' directory in fstab. fatal");
+    }
+
+    // Before mounting the root, we need to switch to the new root
+    log::info!("Switching to new root:{:?}", &root_temp_mount);
+    switch_to_new_root(&root_temp_mount)?;
+
+    // now mount the other partitions
+    for e in fstab_entries {
+        // we have already mounted the root above, skip it
+        if e.mountpoint == root_cmp {
+            continue;
+        }
+        ensure_mount_device_is_created(e.fs_spec.as_c_str(), &mut socket)?;
+        mount_partition(&e)?;
+    }
+
+    Ok(())
+}
+
+/// Get the device entry for the the provided entry. The device entries can be
+/// of the form  /dev/block/<name>  or /dev/block/by-name/<partition-name>
+fn ensure_mount_device_is_created(
+    fs_spec: &CStr,
+    mut nl_socket: &mut NLSocket,
+) -> Result<(), std::io::Error> {
+    let path = Path::new(fs_spec.clone().to_str().unwrap());
+
+    // we allow early mounting of tmpfs
+    if path == Path::new("tmpfs") {
+        return Ok(())
+    }
+
+    if !path.starts_with("/dev/block") {
+        panic!("filesystem spec in fstab must start with /dev/block");
+    }
+
+    // return right away if the device already exists
+    if path.exists() {
+        return Ok(());
+    }
+
+    let mut path_components = path.components().skip(3).take(2);
+
+    if let Some(third) = path_components.next() {
+        let (device_is_by_name, device_name, search_path) = if third.as_os_str() == "by-name" {
+            let device = path_components.next().expect("Expected device name");
+            // if we have the device by name we need to search broader
+            (true, device, PathBuf::new().join("/sys/class/block"))
+        } else {
+            // third is the device name
+            // if we have the device name, narrow the search down to the provided device
+            (false, third, Path::new("/sys/class/block").join(&third))
+        };
+
+        //println!("Going to regen for {}", &search_path.display());
+
+        let _action = regenerate_uevent_for_dir(&search_path, &mut nl_socket, &mut |e| {
+            log::debug!("Event {:?}", e);
+
+            // look for partition name if device is searched by name
+            let matched = if device_is_by_name {
+                if let Some(p_name) = e.get_partition_name() {
+                    if p_name == device_name.as_os_str() {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                if let Some(p_name) = e.get_devname() {
+                    if p_name == device_name.as_os_str() {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            };
+
+            if matched {
+                handle_events::handle_uevent::<pal::permissions::DefaultImpl>(e).unwrap();
+                UEventGenerateAction::Stop
+            } else {
+                UEventGenerateAction::Continue
+            }
+        });
+
+        if device_is_by_name {
+            if !Path::new("/dev/block/by-name").join(&device_name).exists() { 
+                return Err(Error::new(std::io::ErrorKind::NotFound, "path not found"));
+            }
+        } else {
+            if !Path::new("/dev/block").join(&device_name).exists() {
+                return Err(Error::new(std::io::ErrorKind::NotFound, "path not found"));
+            }
+        }
+        Ok(())
+    } else {
+        return Err(Error::new(std::io::ErrorKind::NotFound, "path not found"));
+    }
+}
+
+fn mount_partition(entry: &FsEntry) -> Result<(), std::io::Error> {
+    log::debug!(
+        "Going to mount {:?} to {:?} type:{:?}",
+        &entry.fs_spec, &entry.mountpoint, &entry.vfs_type
+    );
+
+    let ret = unsafe {
+        libc::mount(
+            entry.fs_spec.as_ptr(),
+            entry.mountpoint.as_ptr(),
+            entry.vfs_type.as_ptr(),
+            entry.mount_options,
+            std::ptr::null_mut(),
+        )
+    };
+
+    if ret == 0 {
+        log::debug!("Mount success:{}", ret);
+        Ok(())
+    } else {
+        log::error!("Mount failed:{}", ret);
+        Err(Error::from_raw_os_error(unsafe {
+            *libc::__errno_location()
+        }))
+    }
+}
+
+/// Switch to the new root file-system. Move all existing mounts
+/// into the new root
+fn switch_to_new_root(new_root: &CStr) -> Result<(), std::io::Error> {
+    let root_str = new_root.to_str().unwrap();
+    // get existing mounts and move them
+    for mount in get_all_mounts(new_root) {
+        let new_mount_path = Path::new(root_str).join(mount.to_str().unwrap().trim_start_matches('/'));
+        log::debug!("New move path:{}", &new_mount_path.display());
+        let mut buf = Vec::new();
+        buf.extend(new_mount_path.as_os_str().as_bytes());
+        buf.push(0);
+        //let res = unsafe { libc::mkdir(buf.as_ptr() as *const libc::c_char, 0755) };
+        //if res != 0 {
+        //    // ok to fail here if the directory already exists
+        //    log::debug!("mkdir failed:{} error:{}",new_mount_path.display(), unsafe {*libc::__errno_location()});
+        //} 
+        
+
+        let res = unsafe {
+            libc::mount(
+                mount.as_ptr(),
+                buf.as_ptr() as *const libc::c_char,
+                std::ptr::null(),
+                libc::MS_MOVE,
+                std::ptr::null(),
+            )
+        };
+
+        if res != 0 {
+            log::error!("Unable to move {:?} mount to {}:{}", mount, &new_mount_path.display(), unsafe{*libc::__errno_location()});
+        } else {
+            log::debug!("Moved {:?} to {:?}", mount, &new_mount_path);
+        }
+    }
+
+    let res = unsafe { libc::chdir(new_root.as_ptr()) };
+    if res != 0 {
+        log::error!("Unable to chdir to new root {:?}", &new_root);
+    } else {
+        log::debug!("Chdir to new root {:?}", &new_root);
+    }
+
+    let res = unsafe {
+        libc::mount(
+            new_root.as_ptr(),
+            c_str!("/"),
+            std::ptr::null(),
+            libc::MS_MOVE,
+            std::ptr::null(),
+        )
+    };
+    if res != 0 {
+        log::error!("Unable to move {:?} mount to /", &new_root);
+    }
+
+    let res = unsafe { libc::chroot(c_str!(".")) };
+    if res != 0 {
+        log::error!("Unable to chroot");
+    }
+
+    Ok(())
+}
+
+/// Helper function for switching root. Get the the current mounts
+/// that need to be moved to the new root
+fn get_all_mounts(skip: &CStr) -> Vec<CString> {
+    let file = unsafe { libc::setmntent(c_str!("/proc/mounts"), c_str!("re")) };
+    if file.is_null() {
+        panic!("Unable to open /proc/mounts");
+    }
+
+    let mut res: Vec<CString> = Vec::new();
+    let root = unsafe { CStr::from_ptr(c_str!("/")) };
+
+    let mut mentry;
+
+    'outer: loop {
+        mentry = unsafe { libc::getmntent(file) };
+        if mentry.is_null() {
+            break;
+        } else {
+            let mentry = unsafe { &*mentry };
+
+            let mnt_dir = unsafe { CStr::from_ptr(mentry.mnt_dir) };
+
+            // ignore the root and the one we have been asked to skip
+            if mnt_dir == root || mnt_dir == skip {
+                log::debug!("Skipping {:?}", mnt_dir);
+                continue;
+            }
+
+            // also ignore if the new mount is within an existing mount.
+            // this will get moved anyway.
+            for path in res.iter() {
+                if mnt_dir
+                    .to_str()
+                    .unwrap()
+                    .starts_with(path.to_str().unwrap())
+                {
+                    log::debug!("Skipping sub-mount {:?}", mnt_dir);
+                    continue 'outer;
+                }
+            }
+            res.push(mnt_dir.to_owned());
+        }
+    }
+    unsafe { libc::endmntent(file) };
+    res
+}
