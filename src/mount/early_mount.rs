@@ -129,6 +129,15 @@ pub fn early_mount() -> Vec<String> {
         }
 
         let err = libc::mknod(
+            c_str!("/dev/console"),
+            libc::S_IFCHR | 0o666,
+            libc::makedev(5, 1),
+        );
+        if 0 != err {
+            errors.push(format!("mknod /dev/console failed:{}", err));
+        }
+
+        let err = libc::mknod(
             c_str!("/dev/ptmx"),
             libc::S_IFCHR | 0o666,
             libc::makedev(5, 2),
@@ -146,6 +155,33 @@ pub fn early_mount() -> Vec<String> {
             errors.push(format!("mknod /dev/null failed:{}", err));
         }
 
+        let err = libc::mknod(
+            c_str!("/dev/zero"),
+            libc::S_IFCHR | 0o666,
+            libc::makedev(1, 5),
+        );
+        if 0 != err {
+            errors.push(format!("mknod /dev/zero failed:{}", err));
+        }
+
+        let err = libc::mknod(
+            c_str!("/dev/full"),
+            libc::S_IFCHR | 0o666,
+            libc::makedev(1, 7),
+        );
+        if 0 != err {
+            errors.push(format!("mknod /dev/full failed:{}", err));
+        }
+
+        let err = libc::mknod(
+            c_str!("/dev/tty"),
+            libc::S_IFCHR | 0o666,
+            libc::makedev(5, 0),
+        );
+        if 0 != err {
+            errors.push(format!("mknod /dev/tty failed:{}", err));
+        }
+
         let err = libc::mount(
             c_str!("tmpfs"),
             c_str!("/mnt"),
@@ -155,6 +191,17 @@ pub fn early_mount() -> Vec<String> {
         );
         if 0 != err {
             errors.push(format!("mount tmpfs failed:{}", err));
+        }
+
+        let err = libc::mount(
+            c_str!("tmpfs"),
+            c_str!("/run"),
+            c_str!("tmpfs"),
+            libc::MS_NOEXEC | libc::MS_NOSUID | libc::MS_NODEV,
+            c_str!("mode=0755,uid=0,nodev,nosuid,strictatime") as *const libc::c_void,
+        );
+        if 0 != err {
+            errors.push(format!("mount tmpfs to /run failed:{}", err));
         }
 
         // Isolated Device Extensions (IDEXs) are mounted in this folder.
