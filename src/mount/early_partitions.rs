@@ -39,7 +39,7 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
 
     let mut socket = create_and_bind_netlink_socket().unwrap();
 
-    //TEST
+    
     if should_prepare_verity(&fstab_entries) {
         crate::mount::verity::load_dm().unwrap();
         // verity partition is called vbmeta_<suffix>
@@ -55,6 +55,8 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
                 log::error!("DM setup error");
                 std::io::Error::from(std::io::ErrorKind::Other)
             })?;
+        
+            log::info!("DM Open Success");
 
     }
     
