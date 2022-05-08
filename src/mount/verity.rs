@@ -65,6 +65,13 @@ impl Dm {
                 CoreError::DMError
             })?;
 
+        // create the device
+        let _device = self.dm.device_create(dm_name, None, DmOptions::default())
+            .map_err(|e|{
+                log::error!("Cannot create device");
+                CoreError::DMError
+            })?;
+
         let protected_partition_name = protected_partition.file_name().unwrap();
         let name = Path::new(protected_partition_name);
         let table_entry = self.partition_header.get_entry(name).ok_or(CoreError::DMPartition)?;
@@ -100,6 +107,12 @@ impl Dm {
                 log::error!("Error loading DM table : {}", e);
                 CoreError::DMError
             });
+
+        self.dm.device_suspend(&id, DmOptions::default())
+            .map_err(|e|{
+                log::error!("Error resuming device");
+                CoreError::DMError
+            })?;
 
         Ok(())
     }
