@@ -27,17 +27,17 @@ pub fn early_mount() -> Vec<String> {
             errors.push(format!("mount tmpfs failed:{}", err));
         }
 
-        let err = libc::mkdir(c_str!("/dev/pts"), 0755);
+        let err = libc::mkdir(c_str!("/dev/pts"), 0o755);
         if 0 != err {
             errors.push(format!("mkdir /dev/pts failed:{}", err));
         }
 
-        let err = libc::mkdir(c_str!("/dev/socket"), 0755);
+        let err = libc::mkdir(c_str!("/dev/socket"), 0o755);
         if 0 != err {
             errors.push(format!("mkdir /dev/socket failed:{}", err));
         }
 
-        let err = libc::mkdir(c_str!("/dev/dm-user"), 0755);
+        let err = libc::mkdir(c_str!("/dev/dm-user"), 0o755);
         if 0 != err {
             errors.push(format!("mkdir /dev/dm-user failed:{}", err));
         }
@@ -67,7 +67,7 @@ pub fn early_mount() -> Vec<String> {
             errors.push(format!("mount proc failed:{} (Is it enabled in the Kernel?) ", *libc::__errno_location()));
         }
 
-        let err = libc::chmod(c_str!("/proc/cmdline"), 0440);
+        let err = libc::chmod(c_str!("/proc/cmdline"), 0o440);
         if 0 != err {
             errors.push(format!("chmod /proc/cmdline failed:{}", err));
         }
@@ -78,7 +78,7 @@ pub fn early_mount() -> Vec<String> {
             String::new()
         };
 
-        let err = libc::chmod(c_str!("/proc/bootconfig"), 0440);
+        let err = libc::chmod(c_str!("/proc/bootconfig"), 0o440);
         if 0 != err {
             //enable CONFIG_BOOT_CONFIG if this fails
             errors.push(format!("chmod /proc/bootconfig failed:{}", err));
@@ -216,7 +216,7 @@ pub fn early_mount() -> Vec<String> {
             errors.push(format!("mount idex failed:{}", err));
         }
 
-        let err = libc::mkdir(c_str!("/new_root"), 0755);
+        let err = libc::mkdir(c_str!("/new_root"), 0o755);
         if 0 != err {
             errors.push(format!("mkdir /new_root failed:{}", err));
         }
@@ -232,11 +232,46 @@ pub fn early_mount() -> Vec<String> {
             errors.push(format!("bind mount of /new_root to itself failed:{}", *libc::__errno_location()));
         }
 
+        create_dev_mapper_device_entry(&mut errors);
 
     }
     errors
 
 }
+
+fn create_dev_mapper_device_entry(errors : &mut Vec<String>) {
+    
+    let proc_misc = std::fs::read_to_string("/proc/misc").unwrap();
+    let mut lines = proc_misc.lines();
+
+    let dev_mapper_minor : Option<u32> = lines.find_map(|e| {
+        let mut split_iter = e.trim().split(' ');
+        let (minor,device) = (split_iter.next().unwrap(), split_iter.next().unwrap());
+        if device == "device-mapper" {
+            let minor = minor.parse::<u32>().expect("Cannot parse minor number");
+            Some(minor)
+        } else {
+            None
+        }
+    });
+
+    unsafe {
+        let err = libc::mkdir(c_str!("/dev/mapper"), 0o755);
+        if 0 != err {
+            errors.push("Error creating /dev/mapper".to_string());
+        }
+        let err = libc::mknod(
+            c_str!("/dev/mapper/control"),
+            libc::S_IFCHR | 0o600,
+            libc::makedev(10, dev_mapper_minor.unwrap()),
+        );
+        if 0 != err {
+            errors.push("Error creating /dev/mapper/control".to_string());
+        }      
+    }
+   
+}
+
 
 /// Lots of unsafe code used here as we need to operate at a very low level.
 /// Idea for this is from the Android init code.
