@@ -74,8 +74,8 @@ impl Dm {
 
         let verity_table_string = format!("{} {} {} {} {} {} {} {} {} {}",
             1, // version 
-            protected_partition.display(),
-            verity_partition.display(),
+            protected_partition.canonicalize().unwrap().display(),
+            verity_partition.canonicalize().unwrap().display(),
             table_entry.data_block_size,
             table_entry.hash_block_size,
             table_entry.num_blocks,
