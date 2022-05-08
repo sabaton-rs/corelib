@@ -69,6 +69,8 @@ impl Dm {
         let name = Path::new(protected_partition_name);
         let table_entry = self.partition_header.get_entry(name).ok_or(CoreError::DMPartition)?;
 
+        let num_blocks = protected_partition.metadata().unwrap().len() / table_entry.data_block_size as u64;
+
 
         let verity_table_string = format!("{} {} {} {} {} {} {} {} {} {}",
             1, // version 
@@ -87,7 +89,7 @@ impl Dm {
 
         let table = vec![(
             0u64,
-            table_entry.num_blocks as u64,
+            num_blocks,
             "verity".into(),
             verity_table_string,
         )];
