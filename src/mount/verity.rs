@@ -1,6 +1,6 @@
 use std::{path::Path, io::Read};
 
-use devicemapper::{DM, DevId, DmName, DmOptions};
+use devicemapper::{DM, DevId, DmName, DmOptions, DmFlags};
 use sabaton_hal::verity::VerityPartitionHeader;
 use thiserror::private::PathAsDisplay;
 
@@ -95,7 +95,7 @@ impl Dm {
         )];
 
         let id = DevId::Name(dm_name);
-        self.dm.table_load(&id, &table, DmOptions::default())
+        self.dm.table_load(&id, &table, DmOptions::default().set_flags(DmFlags::DM_READONLY))
             .map_err(|e|{
                 log::error!("Error loading DM table : {}", e);
                 CoreError::DMError
