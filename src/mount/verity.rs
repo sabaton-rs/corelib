@@ -95,11 +95,11 @@ impl Dm {
         )];
 
         let id = DevId::Name(dm_name);
-        self.dm.table_load(&id, &table, DmOptions::default().set_flags(DmFlags::DM_READONLY))
+        let r = self.dm.table_load(&id, &table, DmOptions::default().set_flags(DmFlags::DM_READONLY))
             .map_err(|e|{
                 log::error!("Error loading DM table : {}", e);
                 CoreError::DMError
-            })?;
+            });
 
         Ok(())
     }
