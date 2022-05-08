@@ -17,3 +17,5 @@ walkdir = "2"
 pal = { path = "pal"}
 sabaton-hal = { git = "https://github.com/sabaton-rs/sabaton-hal.git"}
 log = "0.4.14"
+devicemapper = "0.32.0"
+

@@ -20,15 +20,27 @@ macro_rules! c_str {
 /// The location of the fstab
 pub const FSTAB_LOCATION: &str = "/etc/fstab";
 
+fn should_prepare_verity(fstab_entries : &Vec<FsEntry>) -> bool {
+    for entry in fstab_entries {
+        if entry.is_verity_protected() && entry.is_first_stage_mount() {
+            return true
+        }
+    }
+    false
+}
+
 /// Mount all the partitions that are marked for early mount
 pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std::io::Error> {
     let fstab_contents = std::fs::read_to_string(FSTAB_LOCATION)?;
     let root_temp_mount = CString::new("/new_root").unwrap();
 
     let suffix = boot_hal.partition_suffix(boot_hal.current_slot()?)?;
-    let mut fstab_entries = FsEntry::parse_entries(&fstab_contents, &suffix)?;
+    let mut fstab_entries = FsEntry::parse_entries(&fstab_contents, suffix)?;
 
     let mut socket = create_and_bind_netlink_socket().unwrap();
+
+    //TEST
+    crate::mount::verity::load_dm().unwrap();
 
     log::debug!("Fstab entries:{:?}", fstab_entries);
     let root_cmp = CString::new("/").unwrap();

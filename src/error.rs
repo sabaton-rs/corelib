@@ -21,6 +21,8 @@ pub enum CoreError {
     NotImplemented,
     #[error("Error code")]
     ErrorCode(ECode),
+    #[error("Device Mapper Error")]
+    DMError,
     #[error("unknown error")]
     Unknown,
 }

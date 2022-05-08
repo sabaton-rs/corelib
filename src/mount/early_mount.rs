@@ -240,6 +240,7 @@ pub fn early_mount() -> Vec<String> {
 
 /// Lots of unsafe code used here as we need to operate at a very low level.
 /// Idea for this is from the Android init code.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn cleanup_ramdisk(dir : *mut libc::DIR, dev : u64) {
     if !dir.is_null() {
         log::info!("Cleaning up RAMDISK");
