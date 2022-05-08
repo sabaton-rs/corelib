@@ -42,7 +42,7 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
     let mut socket = create_and_bind_netlink_socket().unwrap();
 
     
-    let dm = if should_prepare_verity(&fstab_entries) {
+    let (mut dm, verity_partition_name) = if should_prepare_verity(&fstab_entries) {
         crate::mount::verity::load_dm().unwrap();
         // verity partition is called vbmeta_<suffix>
         let verity_partition_name = format!("{}_{}",VBMETA_PARTITION_NAME_WITHOUT_SUFFIX,suffix);
@@ -59,9 +59,9 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             })?;
         
             log::info!("DM Open Success");
-        Some(dm)
+            (Some(dm), Some(PathBuf::from(verity_partition_name)))
     } else {
-        None
+        (None, None)
     };
     
 
@@ -108,7 +108,11 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             continue;
         }
         ensure_mount_device_is_created(e.fs_spec.as_c_str(), &mut socket)?;
-        mount_partition(&e)?;
+        if e.is_verity_protected() {
+            mount_verity_partition(&e, dm.as_mut().unwrap(), verity_partition_name.as_ref().unwrap())?;
+        } else {
+            mount_partition(&e)?;
+        }
     }
 
     Ok(())
@@ -186,6 +190,21 @@ fn ensure_mount_device_is_created(
     } else {
         Err(Error::new(std::io::ErrorKind::NotFound, "path not found"))
     }
+}
+
+// Mount a verity protected partition
+fn mount_verity_partition(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path) -> Result<(), std::io::Error> {
+
+    let protected_partition = Path::new(entry.fs_spec.to_str().unwrap());
+    let name = protected_partition.file_name().unwrap();
+    let name = format!("verified-{}",name.to_str().unwrap());
+    dm.create_dm_device(Path::new(&entry.fs_spec.to_str().unwrap()), verity_partition, &name)
+        .map_err(|e|{
+            std::io::Error::from(std::io::ErrorKind::PermissionDenied)
+        })?;
+
+    mount_partition(entry)
+
 }
 
 fn mount_partition(entry: &FsEntry) -> Result<(), std::io::Error> {
