@@ -23,6 +23,8 @@ pub enum CoreError {
     ErrorCode(ECode),
     #[error("Device Mapper Error")]
     DMError,
+    #[error("Device Mapper Partition Lookup error")]
+    DMPartition,
     #[error("unknown error")]
     Unknown,
 }

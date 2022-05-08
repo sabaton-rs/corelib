@@ -2,6 +2,7 @@ use std::{path::Path, io::Read};
 
 use devicemapper::{DM, DevId, DmName, DmOptions};
 use sabaton_hal::verity::VerityPartitionHeader;
+use thiserror::private::PathAsDisplay;
 
 use crate::error::CoreError;
 
@@ -54,6 +55,51 @@ impl Dm {
             partition_header,
         })
         
+    }
+
+    pub fn create_dm_device(&self, protected_partition:&Path, verity_partition : &Path,name : &str) -> Result<(), CoreError> {
+
+        let dm_name = DmName::new(name)
+            .map_err(|e|{
+                log::error!("Create DMName");
+                CoreError::DMError
+            })?;
+
+        let protected_partition_name = protected_partition.file_name().unwrap();
+        let name = Path::new(protected_partition_name);
+        let table_entry = self.partition_header.get_entry(name).ok_or(CoreError::DMPartition)?;
+
+
+        let verity_table_string = format!("{} {} {} {} {} {} {} {} {} {}",
+            1, // version 
+            protected_partition.display(),
+            verity_partition.display(),
+            table_entry.data_block_size,
+            table_entry.hash_block_size,
+            table_entry.num_blocks,
+            table_entry.hash_start,
+            table_entry.algorithm,
+            hex::encode(table_entry.digest),
+            hex::encode(table_entry.salt),
+        );
+        
+        log::info!("dm :{}", &verity_table_string);
+
+        let table = vec![(
+            0u64,
+            table_entry.num_blocks as u64,
+            "verity".into(),
+            verity_table_string,
+        )];
+
+        let id = DevId::Name(dm_name);
+        self.dm.table_load(&id, &table, DmOptions::default())
+            .map_err(|e|{
+                log::error!("Error loading DM table");
+                CoreError::DMError
+            })?;
+
+        Ok(())
     }
 }
 

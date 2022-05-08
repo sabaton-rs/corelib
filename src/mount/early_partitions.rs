@@ -11,6 +11,8 @@ use libc::CSTOPB;
 use crate::uevent::{*};
 use walkdir::WalkDir;
 
+pub const VBMETA_PARTITION_NAME_WITHOUT_SUFFIX : &str = "/dev/block/by-name/vbmeta"; 
+
 macro_rules! c_str {
     ($s:expr) => {{
         concat!($s, "\0").as_ptr() as *const std::os::raw::c_char
@@ -20,7 +22,7 @@ macro_rules! c_str {
 /// The location of the fstab
 pub const FSTAB_LOCATION: &str = "/etc/fstab";
 
-fn should_prepare_verity(fstab_entries : &Vec<FsEntry>) -> bool {
+fn should_prepare_verity(fstab_entries : &[FsEntry]) -> bool {
     for entry in fstab_entries {
         if entry.is_verity_protected() && entry.is_first_stage_mount() {
             return true
@@ -40,10 +42,10 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
     let mut socket = create_and_bind_netlink_socket().unwrap();
 
     
-    if should_prepare_verity(&fstab_entries) {
+    let dm = if should_prepare_verity(&fstab_entries) {
         crate::mount::verity::load_dm().unwrap();
         // verity partition is called vbmeta_<suffix>
-        let verity_partition_name = format!("{}_{}","/dev/block/by-name/vbmeta",suffix);
+        let verity_partition_name = format!("{}_{}",VBMETA_PARTITION_NAME_WITHOUT_SUFFIX,suffix);
         let c_verity_partition_name = CString::new(verity_partition_name.as_str())?;
         ensure_mount_device_is_created(&c_verity_partition_name, &mut socket)
             .map_err(|e|{
@@ -57,8 +59,10 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             })?;
         
             log::info!("DM Open Success");
-
-    }
+        Some(dm)
+    } else {
+        None
+    };
     
 
     log::debug!("Fstab entries:{:?}", fstab_entries);
@@ -70,7 +74,7 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
         } else {
             let mut count = 5;
             while count > 0 {
-                if let Ok(_) = ensure_mount_device_is_created(root.fs_spec.as_c_str(), &mut socket) { 
+                if ensure_mount_device_is_created(root.fs_spec.as_c_str(), &mut socket).is_ok() { 
                     log::info!("early mount devices created");
                     break;
                 } else {
