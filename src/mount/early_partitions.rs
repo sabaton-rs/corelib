@@ -201,7 +201,7 @@ fn mount_verity_partition(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path)
 
     let protected_partition = Path::new(entry.fs_spec.to_str().unwrap());
     let name = protected_partition.file_name().unwrap();
-    let name = format!("verified-{}",name.to_str().unwrap());
+    let name = format!("example-{}","dev" /*name.to_str().unwrap()*/);
     dm.create_dm_device(Path::new(&entry.fs_spec.to_str().unwrap()), verity_partition, &name)
         .map_err(|e|{
             std::io::Error::from(std::io::ErrorKind::PermissionDenied)
