@@ -190,19 +190,15 @@ fn mount_partition(entry: &FsEntry) -> Result<(), std::io::Error> {
         &entry.fs_spec, &entry.mountpoint, &entry.vfs_type
     );
 
-    let ret = if !entry.is_verity_protected() {
-        unsafe {
-            libc::mount(
-                entry.fs_spec.as_ptr(),
-                entry.mountpoint.as_ptr(),
-                entry.vfs_type.as_ptr(),
-                entry.mount_options,
-                std::ptr::null_mut(),
-            )
-        }
-    } else {
-        log::debug!("{} is verity protected",&entry.mountpoint.to_str().unwrap());
-        -1
+    
+    let ret = unsafe {
+        libc::mount(
+            entry.fs_spec.as_ptr(),
+            entry.mountpoint.as_ptr(),
+            entry.vfs_type.as_ptr(),
+            entry.mount_options,
+            std::ptr::null_mut(),
+        )
     };
 
     if ret == 0 {
