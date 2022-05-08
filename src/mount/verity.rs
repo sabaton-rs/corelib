@@ -1,6 +1,7 @@
 use std::{path::Path, io::Read};
 
 use devicemapper::{DM, DevId, DmName, DmOptions, DmFlags};
+use nix::ioctl_read;
 use sabaton_hal::verity::VerityPartitionHeader;
 use thiserror::private::PathAsDisplay;
 
@@ -92,7 +93,7 @@ impl Dm {
                 CoreError::DMError
             })?;
 
-        let num_blocks = protected_partition.metadata().unwrap().len() / table_entry.data_block_size as u64;
+        let num_blocks = get_device_size(&protected_partition) / table_entry.data_block_size as u64;
         log::info!("{} has {} blocks", protected_partition.display(), num_blocks);
 
 
@@ -150,3 +151,29 @@ pub fn load_dm() -> Result<(), CoreError> {
     Ok(())
 }
 
+
+use std::os::unix::io::AsRawFd;
+use std::fs::OpenOptions;
+
+// Generate ioctl function
+const BLKGETSIZE64_CODE: u8 = 0x12; // Defined in linux/fs.h
+const BLKGETSIZE64_SEQ: u8 = 114;
+ioctl_read!(ioctl_blkgetsize64, BLKGETSIZE64_CODE, BLKGETSIZE64_SEQ, u64);
+
+/// Determine device size
+fn get_device_size(path: &Path) -> u64 {
+   let file = OpenOptions::new()
+             .write(true)
+             .open(path).unwrap();
+
+   let fd = file.as_raw_fd();
+
+   let mut cap = 0u64;
+   let cap_ptr = &mut cap as *mut u64;
+
+   unsafe {
+      ioctl_blkgetsize64(fd, cap_ptr).unwrap();
+   }
+  
+   cap
+}
