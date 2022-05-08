@@ -59,6 +59,12 @@ impl Dm {
 
     pub fn create_dm_device(&self, protected_partition:&Path, verity_partition : &Path,name : &str) -> Result<(), CoreError> {
 
+        let protected_partition = protected_partition.canonicalize()
+            .map_err(|e| CoreError::InvalidArgument)?;
+        
+        let verity_partition = verity_partition.canonicalize()
+            .map_err(|e| CoreError::InvalidArgument)?;
+
         let dm_name = DmName::new(name)
             .map_err(|e|{
                 log::error!("Create DMName");
@@ -77,12 +83,13 @@ impl Dm {
         let table_entry = self.partition_header.get_entry(name).ok_or(CoreError::DMPartition)?;
 
         let num_blocks = protected_partition.metadata().unwrap().len() / table_entry.data_block_size as u64;
+        log::info!("{} has {} blocks", protected_partition.display(), num_blocks);
 
 
         let verity_table_string = format!("{} {} {} {} {} {} {} {} {} {}",
             1, // version 
-            protected_partition.canonicalize().unwrap().display(),
-            verity_partition.canonicalize().unwrap().display(),
+            protected_partition.display(),
+            verity_partition.display(),
             table_entry.data_block_size,
             table_entry.hash_block_size,
             table_entry.num_blocks,
