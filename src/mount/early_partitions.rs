@@ -88,7 +88,11 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             // mount the root partition, but into /mnt/system for now. We will make this the new
             // root later
             root.mountpoint = root_temp_mount.clone();
-            mount_partition(root)?;
+            if root.is_verity_protected() {
+                mount_verity_partition(root, dm.as_mut().unwrap(), verity_partition_name.as_ref().unwrap())?;
+            } else {
+                mount_partition(root)?;
+            }
             // switch it back so we won't attempt to mount it again
             root.mountpoint = root_cmp.clone();
             
