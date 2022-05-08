@@ -57,11 +57,11 @@ impl Dm {
         
     }
 
-    pub fn create_dm_device(&self, protected_partition:&Path, verity_partition : &Path,name : &str) -> Result<(), CoreError> {
+    pub fn create_dm_device(&self, protected_partition_from_fstab:&Path, verity_partition : &Path,name : &str) -> Result<(), CoreError> {
 
-        let protected_partition = protected_partition.canonicalize()
+        let protected_partition = protected_partition_from_fstab.canonicalize()
             .map_err(|e| {
-                log::error!("Canonicalize {}", protected_partition.display());
+                log::error!("Canonicalize {}", protected_partition_from_fstab.display());
                 CoreError::InvalidArgument
             })?;
         
@@ -84,9 +84,13 @@ impl Dm {
                 CoreError::DMError
             })?;
 
-        let protected_partition_name = protected_partition.file_name().unwrap();
+        let protected_partition_name = protected_partition_from_fstab.file_name().unwrap();
         let name = Path::new(protected_partition_name);
-        let table_entry = self.partition_header.get_entry(name).ok_or(CoreError::DMPartition)?;
+        let table_entry = self.partition_header.get_entry(name).ok_or(CoreError::DMPartition)
+            .map_err(|e| {
+                log::error!("Cannot get entry for {}", name.display());
+                CoreError::DMError
+            })?;
 
         let num_blocks = protected_partition.metadata().unwrap().len() / table_entry.data_block_size as u64;
         log::info!("{} has {} blocks", protected_partition.display(), num_blocks);
@@ -121,11 +125,11 @@ impl Dm {
                 CoreError::DMError
             });
 
-        self.dm.device_suspend(&id, DmOptions::default())
+        let r = self.dm.device_suspend(&id, DmOptions::default())
             .map_err(|e|{
                 log::error!("Error resuming device");
                 CoreError::DMError
-            })?;
+            });
 
         Ok(())
     }
