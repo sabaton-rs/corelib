@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::fstab::*;
+use crate::{fstab::*, mount::verity::Dm};
 use sabaton_hal::bootloader::BootControl;
 use libc::CSTOPB;
 use crate::uevent::{*};
@@ -40,7 +40,24 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
     let mut socket = create_and_bind_netlink_socket().unwrap();
 
     //TEST
-    crate::mount::verity::load_dm().unwrap();
+    if should_prepare_verity(&fstab_entries) {
+        crate::mount::verity::load_dm().unwrap();
+        // verity partition is called vbmeta_<suffix>
+        let verity_partition_name = format!("{}_{}","/dev/block/by-name/vbmeta",suffix);
+        let c_verity_partition_name = CString::new(verity_partition_name.as_str())?;
+        ensure_mount_device_is_created(&c_verity_partition_name, &mut socket)
+            .map_err(|e|{
+                log::error!("Cannot create device for {}",verity_partition_name);
+                e
+            })?;
+        let dm = Dm::new(Path::new(&verity_partition_name))
+            .map_err(|e| {
+                log::error!("DM setup error");
+                std::io::Error::from(std::io::ErrorKind::Other)
+            })?;
+
+    }
+    
 
     log::debug!("Fstab entries:{:?}", fstab_entries);
     let root_cmp = CString::new("/").unwrap();
