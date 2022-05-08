@@ -95,7 +95,7 @@ impl Dm {
         let id = DevId::Name(dm_name);
         self.dm.table_load(&id, &table, DmOptions::default())
             .map_err(|e|{
-                log::error!("Error loading DM table");
+                log::error!("Error loading DM table : {}", e);
                 CoreError::DMError
             })?;
 
