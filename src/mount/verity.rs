@@ -60,10 +60,16 @@ impl Dm {
     pub fn create_dm_device(&self, protected_partition:&Path, verity_partition : &Path,name : &str) -> Result<(), CoreError> {
 
         let protected_partition = protected_partition.canonicalize()
-            .map_err(|e| CoreError::InvalidArgument)?;
+            .map_err(|e| {
+                log::error!("Canonicalize {}", protected_partition.display());
+                CoreError::InvalidArgument
+            })?;
         
         let verity_partition = verity_partition.canonicalize()
-            .map_err(|e| CoreError::InvalidArgument)?;
+            .map_err(|e| {
+                log::error!("Canonicalize {}", verity_partition.display());
+                CoreError::InvalidArgument
+            })?;
 
         let dm_name = DmName::new(name)
             .map_err(|e|{
