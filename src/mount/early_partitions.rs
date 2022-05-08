@@ -85,7 +85,7 @@ fn ensure_mount_device_is_created(
     fs_spec: &CStr,
     mut nl_socket: &mut NLSocket,
 ) -> Result<(), std::io::Error> {
-    let path = Path::new(fs_spec.clone().to_str().unwrap());
+    let path = Path::new(fs_spec.to_str().unwrap());
 
     // we allow early mounting of tmpfs
     if path == Path::new("tmpfs") {
@@ -122,24 +122,14 @@ fn ensure_mount_device_is_created(
             // look for partition name if device is searched by name
             let matched = if device_is_by_name {
                 if let Some(p_name) = e.get_partition_name() {
-                    if p_name == device_name.as_os_str() {
-                        true
-                    } else {
-                        false
-                    }
+                    p_name == device_name.as_os_str()
                 } else {
                     false
                 }
+            } else if let Some(p_name) = e.get_devname() {
+                p_name == device_name.as_os_str()
             } else {
-                if let Some(p_name) = e.get_devname() {
-                    if p_name == device_name.as_os_str() {
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
+                false
             };
 
             if matched {
@@ -154,14 +144,12 @@ fn ensure_mount_device_is_created(
             if !Path::new("/dev/block/by-name").join(&device_name).exists() { 
                 return Err(Error::new(std::io::ErrorKind::NotFound, "path not found"));
             }
-        } else {
-            if !Path::new("/dev/block").join(&device_name).exists() {
-                return Err(Error::new(std::io::ErrorKind::NotFound, "path not found"));
-            }
+        } else if !Path::new("/dev/block").join(&device_name).exists() {
+            return Err(Error::new(std::io::ErrorKind::NotFound, "path not found"));
         }
         Ok(())
     } else {
-        return Err(Error::new(std::io::ErrorKind::NotFound, "path not found"));
+        Err(Error::new(std::io::ErrorKind::NotFound, "path not found"))
     }
 }
 
@@ -171,14 +159,19 @@ fn mount_partition(entry: &FsEntry) -> Result<(), std::io::Error> {
         &entry.fs_spec, &entry.mountpoint, &entry.vfs_type
     );
 
-    let ret = unsafe {
-        libc::mount(
-            entry.fs_spec.as_ptr(),
-            entry.mountpoint.as_ptr(),
-            entry.vfs_type.as_ptr(),
-            entry.mount_options,
-            std::ptr::null_mut(),
-        )
+    let ret = if !entry.is_verity_protected() {
+        unsafe {
+            libc::mount(
+                entry.fs_spec.as_ptr(),
+                entry.mountpoint.as_ptr(),
+                entry.vfs_type.as_ptr(),
+                entry.mount_options,
+                std::ptr::null_mut(),
+            )
+        }
+    } else {
+        log::debug!("{} is verity protected",&entry.mountpoint.to_str().unwrap());
+        -1
     };
 
     if ret == 0 {

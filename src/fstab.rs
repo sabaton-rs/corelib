@@ -16,6 +16,8 @@ pub enum FsManagerFlags {
     SlotSelect,
     /// This is a logical partition (using DM Mapper. Not supported yet)
     Logical,
+    /// This fs is protected with metadata in the verity partition.
+    Verity,
     /// Other flags
     Other(String),
 }
@@ -27,6 +29,7 @@ impl FromStr for FsManagerFlags {
         match s {
             "slotselect" => Ok(FsManagerFlags::SlotSelect),
             "first_stage_mount" => Ok(FsManagerFlags::FirstStageMount),
+            "verity" => Ok(FsManagerFlags::Verity),
             "logical" => Ok(FsManagerFlags::Logical),
             _ => Ok(FsManagerFlags::Other(String::from(s)))
         }
@@ -83,7 +86,7 @@ impl FsEntry {
 
 
             let entry = FsEntry {
-                fs_spec:  fs_spec,
+                fs_spec,
                 mountpoint: CString::new(parts[1]).unwrap(),
                 vfs_type: CString::new(parts[2]).unwrap(),
                 mount_options,
@@ -119,7 +122,7 @@ impl FsEntry {
                 return true
             }
         }
-        return false
+        false
     }
 
     pub fn is_slot_selected(&self) -> bool {
@@ -128,7 +131,7 @@ impl FsEntry {
                 return true
             }
         }
-        return false
+        false
     }
 
     pub fn is_logical(&self) -> bool {
@@ -137,7 +140,16 @@ impl FsEntry {
                 return true
             }
         }
-        return false
+        false
+    }
+
+    pub fn is_verity_protected(&self) -> bool {
+        for flag in  self.fs_manager_flags.iter() {
+            if let FsManagerFlags::Verity = flag {
+                return true
+            }
+        }
+        false
     }
 }
 
@@ -150,7 +162,7 @@ mod test {
         let fstab = r###"#fstab for initrd. 
 #<dev>                          <mnt_point>     <type>  <mnt_flags options> <fs_mgr_flags>
 # system partition must be mounted as root.
-/dev/block/by-name/system           /           ext2    ro,noauto,nouser    slotselect,first_stage_mount
+/dev/block/by-name/system           /           ext2    ro,noauto,nouser    slotselect,first_stage_mount,verity
 /dev/block/by-name/vendor           /vendor     ext2    ro,noauto,nouser    slotselect,first_stage_mount
 /dev/block/by-name/data             /data       ext2    rw,noauto,nouser    first_stage_mount
 "###;
