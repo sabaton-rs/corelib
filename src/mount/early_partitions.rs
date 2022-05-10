@@ -7,9 +7,7 @@ use std::{
 
 use crate::{fstab::*, mount::verity::Dm};
 use sabaton_hal::bootloader::BootControl;
-use libc::CSTOPB;
 use crate::uevent::{*};
-use walkdir::WalkDir;
 
 pub const VBMETA_PARTITION_NAME_WITHOUT_SUFFIX : &str = "/dev/block/by-name/vbmeta"; 
 
@@ -207,7 +205,14 @@ fn mount_verity_partition(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path)
             std::io::Error::from(std::io::ErrorKind::PermissionDenied)
         })?;
 
-    mount_partition(entry)
+    let mut e = entry.clone();
+
+    let verified_device_path = format!("/dev/mapper/{}",&name);
+
+    e.fs_spec = CString::new(verified_device_path.as_str()).unwrap();
+
+    mount_partition(&e);
+    Ok(())
 
 }
 

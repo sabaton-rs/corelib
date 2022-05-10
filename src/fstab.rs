@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 
 /// FsManagerFlags
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum FsManagerFlags {
     /// Mount this partition during early boot
     FirstStageMount,
@@ -36,7 +36,7 @@ impl FromStr for FsManagerFlags {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct FsEntry {
     /// The device identifier
     pub fs_spec: CString,
