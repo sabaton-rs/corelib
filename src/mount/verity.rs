@@ -93,7 +93,8 @@ impl Dm {
                 CoreError::DMError
             })?;
 
-        let num_blocks = get_device_size(&protected_partition) / table_entry.data_block_size as u64;
+        let partition_size_bytes = get_device_size(&protected_partition);
+        let num_blocks = partition_size_bytes / table_entry.data_block_size as u64;
         log::info!("{} has {} blocks", protected_partition.display(), num_blocks);
 
 
@@ -114,7 +115,7 @@ impl Dm {
 
         let table = vec![(
             0u64,
-            num_blocks,
+            partition_size_bytes as u64,
             "verity".into(),
             verity_table_string,
         )];
