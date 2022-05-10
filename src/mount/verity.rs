@@ -115,7 +115,7 @@ impl Dm {
 
         let table = vec![(
             0u64,
-            partition_size_bytes as u64,
+            partition_size_bytes as u64 / 512,  // sector is always 512 bytes even if the device has larger blocks sizes
             "verity".into(),
             verity_table_string,
         )];
