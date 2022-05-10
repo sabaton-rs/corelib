@@ -327,7 +327,11 @@ pub fn regenerate_uevent_for_dir(
     socket: &mut NLSocket,
     cb: &mut dyn FnMut(&UEvent) -> UEventGenerateAction,
 ) -> UEventGenerateAction {
-    if !dir.is_dir() {
+
+    // don't go deeper than 4 elements in the path
+    // /sys/class/block/vda4 
+
+    if !dir.is_dir() || dir.components().count() > 4 {
         return UEventGenerateAction::Continue;
     }
     log::debug!("Regen for {}", dir.display());
