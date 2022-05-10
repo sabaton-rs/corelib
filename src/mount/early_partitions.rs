@@ -38,6 +38,7 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
     let mut fstab_entries = FsEntry::parse_entries(&fstab_contents, suffix)?;
 
     let mut socket = create_and_bind_netlink_socket().unwrap();
+    let mut next_dm_index = 0;
 
     
     let (mut dm, verity_partition_name) = if should_prepare_verity(&fstab_entries) {
@@ -87,7 +88,13 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             // root later
             root.mountpoint = root_temp_mount.clone();
             if root.is_verity_protected() {
-                mount_verity_partition(root, dm.as_mut().unwrap(), verity_partition_name.as_ref().unwrap())?;
+                let dm_device = format!("dm-{}", next_dm_index);
+                next_dm_index += 1;
+                create_dm_device(root, dm.as_mut().unwrap(), verity_partition_name.as_ref().unwrap(),&dm_device)?;
+                let device = create_dm_device_entry(&dm_device,&mut socket)?;
+                let mut e = root.clone();        
+                e.fs_spec = CString::new(device.to_str().unwrap()).unwrap();
+                mount_partition(&e)?;
             } else {
                 mount_partition(root)?;
             }
@@ -110,14 +117,58 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             continue;
         }
         ensure_mount_device_is_created(e.fs_spec.as_c_str(), &mut socket)?;
+        
         if e.is_verity_protected() {
-            mount_verity_partition(&e, dm.as_mut().unwrap(), verity_partition_name.as_ref().unwrap())?;
+            let dm_device = format!("dm-{}", next_dm_index);
+            next_dm_index += 1;
+            create_dm_device(&e, dm.as_mut().unwrap(), verity_partition_name.as_ref().unwrap(),&dm_device)?;
+            let device = create_dm_device_entry(&dm_device,&mut socket)?;
+            let mut e = e.clone();        
+            e.fs_spec = CString::new(device.to_str().unwrap()).unwrap();
+            mount_partition(&e)?;
         } else {
             mount_partition(&e)?;
         }
     }
-
     Ok(())
+}
+
+
+/// Create a device manager device entry
+/// device_name indicates thethe dm device created
+/// for example dm-0, dm-1, etc.
+/// Returns the  path to the device that is created.
+fn create_dm_device_entry(device_name: &str,mut nl_socket: &mut NLSocket) -> Result<PathBuf, std::io::Error> {
+
+    let device = PathBuf::from(format!("/sys/block/dm-{}",device_name));
+    log::debug!("Create DM device for {}",device.display());
+
+    let _action = regenerate_uevent_for_dir(&device, &mut nl_socket, &mut |e| {
+        log::debug!("Event {:?}", e);
+
+        // look for partition name if device is searched by name
+        let matched = if let Some(p_name) = e.get_devname() {
+            p_name == device_name
+        } else {
+            false
+        };
+
+        if matched {
+            handle_events::handle_uevent::<pal::permissions::DefaultImpl>(e).unwrap();
+            UEventGenerateAction::Stop
+        } else {
+            UEventGenerateAction::Continue
+        }
+    });
+
+    let device  = Path::new("/dev/block").join(device_name);
+
+    if !device.exists() {
+        log::error!("{} device entry not created", device_name);
+        Err(Error::new(std::io::ErrorKind::NotFound, "path not found"))
+    } else {
+        Ok(device)
+    }
 }
 
 /// Get the device entry for the the provided entry. The device entries can be
@@ -195,23 +246,25 @@ fn ensure_mount_device_is_created(
 }
 
 // Mount a verity protected partition
-fn mount_verity_partition(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path) -> Result<(), std::io::Error> {
+fn create_dm_device(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path, name: &str) -> Result<(), std::io::Error> {
 
     let protected_partition = Path::new(entry.fs_spec.to_str().unwrap());
-    let name = protected_partition.file_name().unwrap();
-    let name = format!("verified-{}",name.to_str().unwrap());
-    dm.create_dm_device(Path::new(&entry.fs_spec.to_str().unwrap()), verity_partition, &name)
+    //let name = protected_partition.file_name().unwrap();
+    //let name = format!("verified-{}",name.to_str().unwrap());
+    //let name = format!("dm-{}","0");
+    dm.create_dm_device(Path::new(&entry.fs_spec.to_str().unwrap()), verity_partition, name)
         .map_err(|e|{
             std::io::Error::from(std::io::ErrorKind::PermissionDenied)
         })?;
 
-    let mut e = entry.clone();
+    Ok(())
+    //let mut e = entry.clone();
 
-    let verified_device_path = format!("/dev/mapper/{}",&name);
+    //let verified_device_path = format!("/dev/mapper/{}",&name);
 
-    e.fs_spec = CString::new(verified_device_path.as_str()).unwrap();
+    //e.fs_spec = CString::new(verified_device_path.as_str()).unwrap();
 
-    mount_partition(&e)
+    //mount_partition(&e)
 }
 
 fn mount_partition(entry: &FsEntry) -> Result<(), std::io::Error> {
