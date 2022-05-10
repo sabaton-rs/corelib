@@ -127,7 +127,7 @@ fn ensure_mount_device_is_created(
     mut nl_socket: &mut NLSocket,
 ) -> Result<(), std::io::Error> {
     let path = Path::new(fs_spec.to_str().unwrap());
-
+    log::debug!("ensure dev created for : {}", path.display());
     // we allow early mounting of tmpfs
     if path == Path::new("tmpfs") {
         return Ok(())
@@ -211,9 +211,7 @@ fn mount_verity_partition(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path)
 
     e.fs_spec = CString::new(verified_device_path.as_str()).unwrap();
 
-    //mount_partition(&e);
-    Ok(())
-
+    mount_partition(&e)
 }
 
 fn mount_partition(entry: &FsEntry) -> Result<(), std::io::Error> {
