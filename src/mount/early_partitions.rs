@@ -211,7 +211,7 @@ fn mount_verity_partition(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path)
 
     e.fs_spec = CString::new(verified_device_path.as_str()).unwrap();
 
-    mount_partition(&e);
+    //mount_partition(&e);
     Ok(())
 
 }
