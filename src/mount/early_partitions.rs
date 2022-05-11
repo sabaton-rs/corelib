@@ -143,6 +143,7 @@ fn create_dm_device_entry(device_name: &str,mut nl_socket: &mut NLSocket) -> Res
     let device = PathBuf::from(format!("/sys/block/{}",device_name));
     log::debug!("Create DM device for {}",device.display());
 
+    
     let _action = regenerate_uevent_for_dir(&device, &mut nl_socket, &mut |e| {
         log::debug!("Event {:?}", e);
 

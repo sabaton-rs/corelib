@@ -1,8 +1,9 @@
 pub mod handle_events;
 
-use libc::{self, c_void, getpid, uid_t};
+use libc::{self, c_void};
 use netlink_sys::{protocols::NETLINK_KOBJECT_UEVENT, Socket, SocketAddr};
 use nix::cmsg_space;
+use nix::poll::{PollFd, PollFlags};
 use nix::sys::stat::{mknod, mode_t, Mode, SFlag};
 use nix::{
     errno::Errno,
@@ -343,13 +344,22 @@ pub fn regenerate_uevent_for_dir(
             drop(file);
             log::debug!(" Wrote to {} Going to read data", &entry_path.display());
 
-            match read_uevent(&mut socket.0) {
-                Ok(uevent) => match cb(&uevent) {
-                    UEventGenerateAction::Stop => return UEventGenerateAction::Stop,
-                    UEventGenerateAction::Continue => {}
-                },
-                Err(e) => {
-                    log::error!("Error reading uevent:{}", e);
+            let mut pollfd = [PollFd::new(socket.0.as_raw_fd(),PollFlags::POLLIN)];
+
+            // drain the socket
+            while let Ok(count) = nix::poll::poll(&mut pollfd, 5) {
+                if count == 0 {
+                    break
+                } else {
+                    match read_uevent(&mut socket.0) {
+                        Ok(uevent) => match cb(&uevent) {
+                            UEventGenerateAction::Stop => return UEventGenerateAction::Stop,
+                            UEventGenerateAction::Continue => {}
+                        },
+                        Err(e) => {
+                            log::error!("Error reading uevent:{}", e);
+                        }
+                    }
                 }
             }
         } else {
