@@ -172,9 +172,9 @@ fn create_dm_device_entry(device_name: &str,mut nl_socket: &mut NLSocket) -> Res
     }
 }
 
-/// Get the device entry for the the provided entry. The device entries can be
+/// Create the device entry for the the provided entry. The device entries can be
 /// of the form  /dev/block/<name>  or /dev/block/by-name/<partition-name>
-fn ensure_mount_device_is_created(
+pub fn ensure_mount_device_is_created(
     fs_spec: &CStr,
     mut nl_socket: &mut NLSocket,
 ) -> Result<(), std::io::Error> {
