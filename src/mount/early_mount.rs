@@ -71,7 +71,7 @@ pub fn early_mount() -> Vec<String> {
         if 0 != err {
             errors.push(format!("chmod /proc/cmdline failed:{}", err));
         }
-        let cmdline = if let Ok(cmdline) = std::fs::read_to_string("/proc/cmdline") {
+        let _cmdline = if let Ok(cmdline) = std::fs::read_to_string("/proc/cmdline") {
             cmdline
         } else {
             errors.push("Failed to read /proc/cmdline".to_owned());

@@ -165,7 +165,7 @@ impl Dm {
         let _r = self
             .dm
             .device_suspend(&id, DmOptions::default())
-            .map_err(|e| {
+            .map_err(|_e| {
                 log::error!("Error resuming device");
                 CoreError::DMError
             });
