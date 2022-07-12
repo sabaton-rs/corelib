@@ -6,5 +6,7 @@ pub enum BootloaderMessageError {
     PriorityOutOfRange,
     #[error("CRC Error")]
     CrcFailure,
+    #[error("Insufficient bytes")]
+    InsufficientBytes,
     
 }

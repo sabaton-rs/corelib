@@ -1,5 +1,5 @@
 /*
-  This code is converted from the Android code at 
+  This code is derived from the Android code at 
   https://android.googlesource.com/platform/bootable/recovery/+/refs/tags/android-10.0.0_r25/bootloader_message/include/bootloader_message/bootloader_message.h
   hence retaining the License header from Android.
 
@@ -24,11 +24,11 @@
  * limitations under the License.
  */
 
-use std::fmt::Display;
+use std::{fmt::Display, io::Write, convert::TryFrom};
 
 use super::error::BootloaderMessageError;
 use c2rust_bitfields::BitfieldStruct;
-use crc::{Crc, Algorithm, CRC_32_ISCSI, CRC_32_AIXM, CRC_32_AUTOSAR, CRC_32_BASE91_D, CRC_32_BZIP2, CRC_32_CD_ROM_EDC, CRC_32_CKSUM, CRC_32_ISO_HDLC};
+use crc::{Crc, CRC_32_ISO_HDLC};
 
 /// Spaces used by misc partition are as below:
 /// 0   - 2K     For bootloader_message
@@ -156,12 +156,6 @@ impl BootloaderMessageAB {
             Ok(bolo_message_ab)
         }        
     }
-
-
-    pub fn set_bootloader_control(&mut self, ctrl : &BootloaderControl) -> Result<(), BootloaderMessageError> {
-        todo!()
-    }
-
      
     /// Call this function to recompute the checksum
     fn set_checksum(&mut self) {
@@ -173,8 +167,30 @@ impl BootloaderMessageAB {
         self.slot_suffix[30] = computed_checksum[2];
         self.slot_suffix[31] = computed_checksum[3];
     }
+
+    /// Retrieve the message as a slice that can be written to the flash
+    pub fn as_slice(&mut self) -> &[u8] {
+        self.set_checksum(); // set the checksum in case the structure was modified
+        let ptr : *const BootloaderMessageAB = self;
+        unsafe {std::slice::from_raw_parts(ptr as *const u8, std::mem::size_of::<BootloaderMessageAB>())}
+    }
     
 }
+
+impl TryFrom<&[u8]> for &BootloaderMessageAB {
+    type Error = BootloaderMessageError;
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        if data.len() < 4096 {
+            Err(BootloaderMessageError::InsufficientBytes)
+        } else {
+            let bytes = data.as_ptr();
+            let bolo_message_ab = bytes as  *const  BootloaderMessageAB;
+            let bolo_message_ab = unsafe {bolo_message_ab.as_ref().unwrap()};
+            Ok(bolo_message_ab)
+        }
+    }
+}
+
 
 #[derive(Clone,Copy)]
 #[repr(C,packed)]
@@ -228,7 +244,7 @@ impl Display for SlotMetadata {
 #[cfg(test)]
 mod test {
 
-    use thiserror::private::DisplayAsDisplay;
+    use std::convert::TryInto;
 
     use super::*;
     #[test]
@@ -241,10 +257,8 @@ mod test {
 
     #[test]
     fn read_bolo_message() {
-        let bytes = include_bytes!("./testdata/bolomessage.dat").as_ptr();
-        let bolo_message_ab = bytes as  *const  BootloaderMessageAB;
-        let bolo_message_ab = unsafe {bolo_message_ab.as_ref().unwrap()};
-
+        let bytes_slice = include_bytes!("./testdata/bolomessage.dat"); 
+        let bolo_message_ab : &BootloaderMessageAB = bytes_slice.as_slice().try_into().unwrap();
 
         let ctrl = bolo_message_ab.get_bootloader_control().unwrap();
         assert_eq!(ctrl.slot_info[0].priority(),15);
@@ -267,21 +281,22 @@ mod test {
         assert_eq!(ctrl.slot_info[2].verity_corrupted(),0);
         assert_eq!(ctrl.slot_info[3].verity_corrupted(),0);
 
-        for s in ctrl.slot_info.as_ref().iter() {
-            println!("SlotMetadata:{:?}",s.to_string());
-        }
+        //for s in ctrl.slot_info.as_ref().iter() {
+        //    println!("SlotMetadata:{:?}",s.to_string());
+        //}
 
         let mut copy = bolo_message_ab.clone();
+        let original_as_slice = copy.as_slice();
+        assert_eq!(original_as_slice,bytes_slice);
+
         let mut control = copy.get_bootloader_control_mut().unwrap();
         control.slot_info[0].set_successful_boot(1);
-        for s in control.slot_info.as_ref().iter() {
-            println!("SlotMetadata:{:?}",s.to_string());
-        }
-        //copy.set_checksum();
-
+        //for s in control.slot_info.as_ref().iter() {
+        //    println!("SlotMetadata:{:?}",s.to_string());
+        //}
         
-
-        
+        let slice = copy.as_slice();
+        assert_eq!(slice.len(),4096);
         
     }
 
