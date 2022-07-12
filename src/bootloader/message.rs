@@ -24,7 +24,10 @@
  * limitations under the License.
  */
 
+use std::fmt::Display;
+
 use super::error::BootloaderMessageError;
+use c2rust_bitfields::BitfieldStruct;
 use crc::{Crc, Algorithm, CRC_32_ISCSI, CRC_32_AIXM, CRC_32_AUTOSAR, CRC_32_BASE91_D, CRC_32_BZIP2, CRC_32_CD_ROM_EDC, CRC_32_CKSUM, CRC_32_ISO_HDLC};
 
 /// Spaces used by misc partition are as below:
@@ -66,7 +69,7 @@ pub const VENDOR_SPACE_OFFSET_IN_MISC: usize = 2 * 1024usize;
 /// uncrypt. Move it into struct bootloader_message_ab to avoid the
 /// issue.
 ///
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 #[repr(C, packed)]
 pub struct BootloaderMessage {
     command : [u8;32],
@@ -112,7 +115,7 @@ pub struct BootloaderMessage {
 /// if update_engine is compiled with Omaha support.
 ///
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 #[repr(C,packed)]
 pub struct BootloaderMessageAB {
     pub message : BootloaderMessage,
@@ -123,6 +126,7 @@ pub struct BootloaderMessageAB {
 }
 
 impl BootloaderMessageAB {
+
     pub fn get_bootloader_control(&self) -> Result<&BootloaderControl,BootloaderMessageError> {
         let crc32 : u32 = u32::from_ne_bytes([self.slot_suffix[28],self.slot_suffix[29],self.slot_suffix[30],self.slot_suffix[31]]);
         let data = &self.slot_suffix[0..28];
@@ -134,6 +138,21 @@ impl BootloaderMessageAB {
         } else {
             let bolo_ctrl_ptr = data.as_ptr() as  *const  BootloaderControl;
             let bolo_message_ab = unsafe {bolo_ctrl_ptr.as_ref().unwrap()}; 
+            Ok(bolo_message_ab)
+        }  
+    }
+
+    pub fn get_bootloader_control_mut(&mut self) -> Result<&mut BootloaderControl,BootloaderMessageError> {
+        let crc32 : u32 = u32::from_ne_bytes([self.slot_suffix[28],self.slot_suffix[29],self.slot_suffix[30],self.slot_suffix[31]]);
+        let data = &self.slot_suffix[0..28];
+        let algo = Crc::<u32>::new(&CRC_32_ISO_HDLC);
+        let computed_checksum = algo.checksum(&data);
+
+        if crc32 != computed_checksum {
+            Err(BootloaderMessageError::CrcFailure)
+        } else {
+            let bolo_ctrl_ptr = data.as_ptr() as  *mut  BootloaderControl;
+            let bolo_message_ab = unsafe {bolo_ctrl_ptr.as_mut().unwrap()}; 
             Ok(bolo_message_ab)
         }        
     }
@@ -157,6 +176,7 @@ impl BootloaderMessageAB {
     
 }
 
+#[derive(Clone,Copy)]
 #[repr(C,packed)]
 pub struct BootloaderControl{
     // NUL terminated active slot suffix.
@@ -180,27 +200,35 @@ pub struct BootloaderControl{
     crc32_le:u32,
 
 }
-#[derive(Debug)]
+
+
+#[derive(Debug,Clone,Copy)]
+#[derive(BitfieldStruct)]
 #[repr(C,packed)]
 struct SlotMetadata {
     // Slot priority with 15 meaning highest priority, 1 lowest
     // priority and 0 the slot is unbootable.
-    bitfield1 : u8,
-    //uint8_t priority : 4;
+    #[bitfield(name="priority", ty="u8", bits="0..=3")]
     // Number of times left attempting to boot this slot.
-    //uint8_t tries_remaining : 3;
+    #[bitfield(name="tries_remaining", ty="u8", bits="4..=6")]
     // 1 if this slot has booted successfully, 0 otherwise.
-    //uint8_t successful_boot : 1;
+    #[bitfield(name="successful_boot", ty="u8", bits="7..=7")]
+    data0 : [u8;1],
     // 1 if this slot is corrupted from a dm-verity corruption, 0
-    // otherwise.
-    bitfield2 : u8,
-    //uint8_t verity_corrupted : 1;
-    // Reserved for further use.
-    //uint8_t reserved : 7;
+    #[bitfield(name="verity_corrupted", ty="u8", bits="0..=0")]
+    data1 : [u8;1],
 } 
+
+impl Display for SlotMetadata {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"Priority:{} TriesRemaining:{} SuccessfulBoot:{} VerityCorrupted:{}", self.priority(),self.tries_remaining(),self.successful_boot(),self.verity_corrupted())
+    }
+}
 
 #[cfg(test)]
 mod test {
+
+    use thiserror::private::DisplayAsDisplay;
 
     use super::*;
     #[test]
@@ -214,13 +242,47 @@ mod test {
     #[test]
     fn read_bolo_message() {
         let bytes = include_bytes!("./testdata/bolomessage.dat").as_ptr();
-        let mut bolo_message_ab = bytes as  *const  BootloaderMessageAB;
+        let bolo_message_ab = bytes as  *const  BootloaderMessageAB;
         let bolo_message_ab = unsafe {bolo_message_ab.as_ref().unwrap()};
 
 
         let ctrl = bolo_message_ab.get_bootloader_control().unwrap();
+        assert_eq!(ctrl.slot_info[0].priority(),15);
+        assert_eq!(ctrl.slot_info[1].priority(),15);
+        assert_eq!(ctrl.slot_info[2].priority(),0);
+        assert_eq!(ctrl.slot_info[3].priority(),0);
 
-        println!("BootloaderControl bytes:{:?}",ctrl.slot_info);
+        assert_eq!(ctrl.slot_info[0].tries_remaining(),6);
+        assert_eq!(ctrl.slot_info[1].tries_remaining(),7);
+        assert_eq!(ctrl.slot_info[2].tries_remaining(),0);
+        assert_eq!(ctrl.slot_info[3].tries_remaining(),0);
+
+        assert_eq!(ctrl.slot_info[0].successful_boot(),0);
+        assert_eq!(ctrl.slot_info[1].successful_boot(),0);
+        assert_eq!(ctrl.slot_info[2].successful_boot(),0);
+        assert_eq!(ctrl.slot_info[3].successful_boot(),0);
+
+        assert_eq!(ctrl.slot_info[0].verity_corrupted(),0);
+        assert_eq!(ctrl.slot_info[1].verity_corrupted(),0);
+        assert_eq!(ctrl.slot_info[2].verity_corrupted(),0);
+        assert_eq!(ctrl.slot_info[3].verity_corrupted(),0);
+
+        for s in ctrl.slot_info.as_ref().iter() {
+            println!("SlotMetadata:{:?}",s.to_string());
+        }
+
+        let mut copy = bolo_message_ab.clone();
+        let mut control = copy.get_bootloader_control_mut().unwrap();
+        control.slot_info[0].set_successful_boot(1);
+        for s in control.slot_info.as_ref().iter() {
+            println!("SlotMetadata:{:?}",s.to_string());
+        }
+        //copy.set_checksum();
+
+        
+
+        
+        
     }
 
 }
