@@ -31,9 +31,8 @@
 /// 16K - 64K    Used by uncrypt and recovery to store wipe_package for A/B devices
 /// Note that these offsets are admitted by bootloader,recovery and uncrypt, so they
 /// are not configurable without changing all of them.
-const BOOTLOADER_MESSAGE_OFFSET_IN_MISC: usize = 0usize;
-const VENDOR_SPACE_OFFSET_IN_MISC: usize = 2 * 1024usize;
-const WIPE_PACKAGE_OFFSET_IN_MISC:usize = 16 * 1024usize;
+pub const BOOTLOADER_MESSAGE_OFFSET_IN_MISC: usize = 0usize;
+pub const VENDOR_SPACE_OFFSET_IN_MISC: usize = 2 * 1024usize;
 
 /// Bootloader Message (2-KiB)
 ///
@@ -64,6 +63,7 @@ const WIPE_PACKAGE_OFFSET_IN_MISC:usize = 16 * 1024usize;
 /// uncrypt. Move it into struct bootloader_message_ab to avoid the
 /// issue.
 ///
+#[derive(Debug)]
 #[repr(C, packed)]
 struct BootloaderMessage {
     command : [u8;32],
@@ -86,12 +86,8 @@ struct BootloaderMessage {
  * We must be cautious when changing the bootloader_message struct size,
  * because A/B-specific fields may end up with different offsets.
  */
-/* 
-#if (__STDC_VERSION__ >= 201112L) || defined(__cplusplus)
-static_assert(sizeof(struct bootloader_message) == 2048,
-              "struct bootloader_message size changes, which may break A/B devices");
-#endif
-*/
+ 
+
 
 ///
 /// The A/B-specific bootloader message structure (4-KiB).
@@ -113,6 +109,7 @@ static_assert(sizeof(struct bootloader_message) == 2048,
 /// if update_engine is compiled with Omaha support.
 ///
 
+#[derive(Debug)]
 #[repr(C,packed)]
 struct BootloaderMessageAB {
     pub message : BootloaderMessage,
@@ -130,7 +127,19 @@ mod test {
     fn check_sizes() {
         assert_eq!(std::mem::size_of::<BootloaderMessage>(),2048);
         assert_eq!(std::mem::size_of::<BootloaderMessageAB>(),4096);
+    }
 
+    #[test]
+    fn read_bolo_message() {
+        let bytes = include_bytes!("./testdata/bolomessage.dat").as_ptr();
+        let mut bolo_message_ab = bytes as  *const  BootloaderMessageAB;
+        let bolo_message_ab = unsafe {bolo_message_ab.as_ref().unwrap()};
+
+        let slot_suffix = bolo_message_ab.slot_suffix;
+
+        println!("BootloaderControl bytes:{:?}",slot_suffix);
     }
 
 }
+
+//disk.img1      34   20513   20480   10M EFI System
