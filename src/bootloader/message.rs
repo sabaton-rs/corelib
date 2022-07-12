@@ -252,14 +252,23 @@ pub struct BootloaderControl{
 }
 
 impl BootloaderControl {
-
-    pub fn slot_suffix(&self) -> Result<&CStr,BootloaderMessageError> {
-        todo!()
+    pub fn slot_suffix(&self) -> Result<&CStr, BootloaderMessageError> {
+        let slot_suffix_bytes=self.slot_suffix.as_slice();
+       let slot_suffix= unsafe{CStr::from_bytes_with_nul_unchecked(slot_suffix_bytes)};
+        
+        Ok(slot_suffix)
     }
-    pub fn set_slot_suffix(&mut self, suffix : &str) -> Result<(),BootloaderMessageError> {
-        todo!()
-    }
+    pub fn set_slot_suffix(&mut self, suffix: &str) -> Result<(), BootloaderMessageError> {
+        let mut slot_suffix_bytes = [0u8; 4];
+        let check = suffix.as_bytes();
 
+        for (index, byte) in check.iter().enumerate() {
+            slot_suffix_bytes[index] = *byte;
+        }
+
+        self.slot_suffix = slot_suffix_bytes;
+        Ok(())
+    }
 }
 
 #[derive(Debug,Clone,Copy)]
@@ -340,6 +349,17 @@ mod test {
             println!("SlotMetadata:{:?}",s.to_string());
         }
         
+        println!("BootloaderControl before setting slot suffix:{:?}\n", control);
+        let suffix=String::from("b");
+        let current_suffix=control.slot_suffix().unwrap();
+        println!("Current slot is {:?}",current_suffix);
+        control.set_slot_suffix(&suffix);
+        //for s in control.slot_info.as_ref().iter() {
+            println!("BootloaderControl after setting slot suffix:{:?}\n", control);
+            let current_suffix=control.slot_suffix().unwrap();
+        println!("Current slot is {:?}",current_suffix);
+        //}
+
         let slice = copy.as_slice();
         assert_eq!(slice.len(),4096);
         
