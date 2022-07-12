@@ -83,17 +83,17 @@ impl Dm {
         verity_partition: &Path,
         name: &str,
     ) -> Result<(), CoreError> {
-        let protected_partition = protected_partition_from_fstab.canonicalize().map_err(|e| {
+        let protected_partition = protected_partition_from_fstab.canonicalize().map_err(|_e| {
             log::error!("Canonicalize {}", protected_partition_from_fstab.display());
             CoreError::InvalidArgument
         })?;
 
-        let verity_partition = verity_partition.canonicalize().map_err(|e| {
+        let verity_partition = verity_partition.canonicalize().map_err(|_e| {
             log::error!("Canonicalize {}", verity_partition.display());
             CoreError::InvalidArgument
         })?;
 
-        let dm_name = DmName::new(name).map_err(|e| {
+        let dm_name = DmName::new(name).map_err(|_e| {
             log::error!("Create DMName");
             CoreError::DMError
         })?;
@@ -102,7 +102,7 @@ impl Dm {
         let _device = self
             .dm
             .device_create(dm_name, None, DmOptions::default())
-            .map_err(|e| {
+            .map_err(|_e| {
                 log::error!("Cannot create device");
                 CoreError::DMError
             })?;
@@ -113,7 +113,7 @@ impl Dm {
             .partition_header
             .get_entry(name)
             .ok_or(CoreError::DMPartition)
-            .map_err(|e| {
+            .map_err(|_e| {
                 log::error!("Cannot get entry for {}", name.display());
                 CoreError::DMError
             })?;
@@ -150,7 +150,7 @@ impl Dm {
         )];
 
         let id = DevId::Name(dm_name);
-        let r = self
+        let _r = self
             .dm
             .table_load(
                 &id,
@@ -162,7 +162,7 @@ impl Dm {
                 CoreError::DMError
             });
 
-        let r = self
+        let _r = self
             .dm
             .device_suspend(&id, DmOptions::default())
             .map_err(|e| {

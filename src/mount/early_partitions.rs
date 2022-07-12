@@ -64,7 +64,7 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             log::error!("Cannot create device for {}", verity_partition_name);
             e
         })?;
-        let dm = Dm::new(Path::new(&verity_partition_name)).map_err(|e| {
+        let dm = Dm::new(Path::new(&verity_partition_name)).map_err(|_e| {
             log::error!("DM setup error");
             std::io::Error::from(std::io::ErrorKind::Other)
         })?;
@@ -162,12 +162,12 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
 /// Returns the  path to the device that is created.
 fn create_dm_device_entry(
     device_name: &str,
-    mut nl_socket: &mut NLSocket,
+    nl_socket: &mut NLSocket,
 ) -> Result<PathBuf, std::io::Error> {
     let device = PathBuf::from(format!("/sys/block/{}", device_name));
     log::debug!("Create DM device for {}", device.display());
 
-    let _action = regenerate_uevent_for_dir(&device, &mut nl_socket, &mut |e| {
+    let _action = regenerate_uevent_for_dir(&device, nl_socket, &mut |e| {
         //log::debug!("Event {:?}", e);
 
         // look for partition name if device is searched by name
@@ -199,7 +199,7 @@ fn create_dm_device_entry(
 /// of the form  /dev/block/<name>  or /dev/block/by-name/<partition-name>
 pub fn ensure_mount_device_is_created(
     fs_spec: &CStr,
-    mut nl_socket: &mut NLSocket,
+    nl_socket: &mut NLSocket,
 ) -> Result<(), std::io::Error> {
     let path = Path::new(fs_spec.to_str().unwrap());
     log::debug!("ensure dev created for : {}", path.display());
@@ -232,7 +232,7 @@ pub fn ensure_mount_device_is_created(
 
         //println!("Going to regen for {}", &search_path.display());
 
-        let _action = regenerate_uevent_for_dir(&search_path, &mut nl_socket, &mut |e| {
+        let _action = regenerate_uevent_for_dir(&search_path, nl_socket, &mut |e| {
             //log::debug!("Event {:?}", e);
 
             // look for partition name if device is searched by name
@@ -276,7 +276,7 @@ fn create_dm_device(
     verity_partition: &Path,
     name: &str,
 ) -> Result<(), std::io::Error> {
-    let protected_partition = Path::new(entry.fs_spec.to_str().unwrap());
+    let _protected_partition = Path::new(entry.fs_spec.to_str().unwrap());
     //let name = protected_partition.file_name().unwrap();
     //let name = format!("verified-{}",name.to_str().unwrap());
     //let name = format!("dm-{}","0");
@@ -285,7 +285,7 @@ fn create_dm_device(
         verity_partition,
         name,
     )
-    .map_err(|e| std::io::Error::from(std::io::ErrorKind::PermissionDenied))?;
+    .map_err(|_e| std::io::Error::from(std::io::ErrorKind::PermissionDenied))?;
 
     Ok(())
     //let mut e = entry.clone();

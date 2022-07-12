@@ -9,8 +9,6 @@ pub mod interface {
 
 use crate::error::CoreError;
 
-use self::interface::{EventType, PropertyType};
-
 pub enum EventCacheUpdatePolicy {
     LastN(usize),
     NewestN(usize),
@@ -45,6 +43,7 @@ pub trait Property {
     fn cancel_on_receive(&mut self) -> Result<(), CoreError>;
 }
 
+/* 
 struct EventStruct {
     something: u32,
 }
@@ -65,3 +64,4 @@ impl ExampleApi {
         Err(CoreError::Unknown)
     }
 }
+*/

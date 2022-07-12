@@ -4,19 +4,17 @@ use libc::{self, c_void};
 use netlink_sys::{protocols::NETLINK_KOBJECT_UEVENT, Socket, SocketAddr};
 use nix::cmsg_space;
 use nix::poll::{PollFd, PollFlags};
-use nix::sys::stat::{mknod, mode_t, Mode, SFlag};
+use nix::sys::stat::{SFlag};
 use nix::{
     errno::Errno,
     sys::{
         socket::{MsgFlags, UnixCredentials},
-        stat::makedev,
         uio::IoVec,
     },
 };
 use std::fmt;
 use std::io::{Error, ErrorKind, Write};
-use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::path::{Path};
 use std::{convert::TryFrom, mem::size_of, os::unix::prelude::AsRawFd};
 /// Uevent processing utilities
 use tracing::{debug, error};
@@ -46,11 +44,11 @@ pub struct UEvent {
 
 impl UEvent {
     pub fn get_devname(&self) -> Option<&str> {
-        self.maybe_devname.as_ref().map(|s| s.as_str())
+        self.maybe_devname.as_deref()
     }
 
     pub fn get_partition_name(&self) -> Option<&str> {
-        self.maybe_partitionname.as_ref().map(|s| s.as_str())
+        self.maybe_partitionname.as_deref()
     }
     pub fn get_dev_type(&self) -> SFlag {
         if let Some(subsystem) = &self.maybe_subsystem {
@@ -203,7 +201,7 @@ const UEVENT_READ_BUFFER_SIZE: usize = 2048 * 5;
 pub struct NLSocket(Socket);
 
 pub fn create_and_bind_netlink_socket() -> Result<NLSocket, std::io::Error> {
-    let kernel_multicast: SocketAddr = SocketAddr::new(0 as u32, 0xFFFF_FFFF);
+    let kernel_multicast: SocketAddr = SocketAddr::new(0u32, 0xFFFF_FFFF);
 
     match Socket::new(NETLINK_KOBJECT_UEVENT) {
         Ok(mut socket) => match socket.bind(&kernel_multicast) {
@@ -298,10 +296,10 @@ pub fn read_uevent(socket: &mut Socket) -> Result<UEvent, Error> {
                     }
                 }
             } else {
-                return Err(std::io::Error::new(
+                Err(std::io::Error::new(
                     ErrorKind::PermissionDenied,
                     "Not a netlink address",
-                ));
+                ))
             }
         }
         Err(e) => {

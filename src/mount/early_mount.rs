@@ -280,7 +280,7 @@ pub fn cleanup_ramdisk(dir: *mut libc::DIR, dev: u64) {
         let dfd = unsafe { libc::dirfd(dir) };
 
         loop {
-            let mut de = unsafe { libc::readdir(dir) };
+            let de = unsafe { libc::readdir(dir) };
             if de.is_null() {
                 break;
             }
@@ -293,7 +293,7 @@ pub fn cleanup_ramdisk(dir: *mut libc::DIR, dev: u64) {
                 continue;
             }
 
-            let mut is_dir = false;
+            let is_dir = false;
 
             if de.d_type == libc::DT_DIR || de.d_type == libc::DT_UNKNOWN {
                 let mut info: libc::stat = unsafe { std::mem::MaybeUninit::zeroed().assume_init() };
@@ -317,7 +317,7 @@ pub fn cleanup_ramdisk(dir: *mut libc::DIR, dev: u64) {
             }
             // directory and subdir is cleaned up
             unsafe {
-                let ret = libc::unlinkat(
+                let _ret = libc::unlinkat(
                     dfd,
                     de.d_name.as_ptr(),
                     if is_dir { libc::AT_REMOVEDIR } else { 0 },

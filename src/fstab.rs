@@ -15,9 +15,8 @@
 use libc::c_ulong;
 use log::{debug, trace};
 use std::{
-    ffi::{CStr, CString},
+    ffi::{CString},
     io::Error,
-    path::PathBuf,
 };
 
 use std::str::FromStr;
@@ -76,7 +75,7 @@ impl FsEntry {
         //file.read_to_string(&mut contents)?;
 
         for line in contents.lines() {
-            if line.starts_with("#") {
+            if line.starts_with('#') {
                 trace!("Skipping commented line: {}", line);
                 continue;
             }
@@ -87,7 +86,7 @@ impl FsEntry {
             }
 
             let flags: Vec<FsManagerFlags> = parts[4]
-                .split(",")
+                .split(',')
                 .map(|s| FsManagerFlags::from_str(s).unwrap())
                 .collect();
 
@@ -189,6 +188,6 @@ mod test {
 /dev/block/by-name/data             /data       ext2    rw,noauto,nouser    first_stage_mount
 "###;
 
-        let _entries = FsEntry::parse_entries(&fstab, "a");
+        let _entries = FsEntry::parse_entries(fstab, "a");
     }
 }

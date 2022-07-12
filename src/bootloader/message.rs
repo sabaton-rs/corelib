@@ -145,7 +145,7 @@ impl BootloaderMessageAB {
         ]);
         let data = &self.slot_suffix[0..28];
         let algo = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-        let computed_checksum = algo.checksum(&data);
+        let computed_checksum = algo.checksum(data);
 
         if crc32 != computed_checksum {
             Err(BootloaderMessageError::CrcFailure)
@@ -167,7 +167,7 @@ impl BootloaderMessageAB {
         ]);
         let data = &self.slot_suffix[0..28];
         let algo = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-        let computed_checksum = algo.checksum(&data);
+        let computed_checksum = algo.checksum(data);
 
         if crc32 != computed_checksum {
             Err(BootloaderMessageError::CrcFailure)
@@ -182,7 +182,7 @@ impl BootloaderMessageAB {
     fn set_checksum(&mut self) {
         let data = &self.slot_suffix[0..28];
         let algo = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-        let computed_checksum = algo.checksum(&data).to_ne_bytes();
+        let computed_checksum = algo.checksum(data).to_ne_bytes();
         self.slot_suffix[28] = computed_checksum[0];
         self.slot_suffix[29] = computed_checksum[1];
         self.slot_suffix[30] = computed_checksum[2];
@@ -212,7 +212,7 @@ impl BootloaderMessageAB {
         // create an uninitialized BootloaderMessageAB structure
         let mut bootloader_message_ab: MaybeUninit<BootloaderMessageAB> = MaybeUninit::uninit();
         let as_ptr = bootloader_message_ab.as_mut_ptr() as *mut u8;
-        let mut slice = unsafe {
+        let slice = unsafe {
             std::slice::from_raw_parts_mut(
                 as_ptr as *mut u8,
                 std::mem::size_of::<BootloaderMessageAB>(),
@@ -220,7 +220,7 @@ impl BootloaderMessageAB {
         };
         assert_eq!(slice.len(), 4096);
 
-        misc_partition_handle.read_exact_at(&mut slice, 0)?;
+        misc_partition_handle.read_exact_at(slice, 0)?;
         unsafe { Ok(bootloader_message_ab.assume_init()) }
     }
 
@@ -384,7 +384,7 @@ mod test {
         let original_as_slice = copy.as_slice();
         assert_eq!(original_as_slice, bytes_slice);
 
-        let mut control = copy.get_bootloader_control_mut().unwrap();
+        let control = copy.get_bootloader_control_mut().unwrap();
         control.slot_info[0].set_successful_boot(1);
         for s in control.slot_info.as_ref().iter() {
             println!("SlotMetadata:{:?}", s.to_string());

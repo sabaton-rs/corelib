@@ -17,7 +17,6 @@ use std::{
     io::Error,
     os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
 use crate::uevent::{Action, UEvent};
