@@ -24,7 +24,7 @@
  * limitations under the License.
  */
 
-use std::{fmt::Display, io::Write, convert::TryFrom};
+use std::{fmt::Display, io::Write, convert::TryFrom, ffi::CStr};
 
 use super::error::BootloaderMessageError;
 use c2rust_bitfields::BitfieldStruct;
@@ -219,6 +219,16 @@ pub struct BootloaderControl{
 
 }
 
+impl BootloaderControl {
+
+    pub fn slot_suffix(&self) -> Result<&CStr,BootloaderMessageError> {
+        todo!()
+    }
+    pub fn set_slot_suffix(&mut self, suffix : &str) -> Result<(),BootloaderMessageError> {
+        todo!()
+    }
+
+}
 
 #[derive(Debug,Clone,Copy)]
 #[derive(BitfieldStruct)]
