@@ -8,5 +8,7 @@ pub enum BootloaderMessageError {
     CrcFailure,
     #[error("Insufficient bytes")]
     InsufficientBytes,
+    #[error("Data too long")]
+    DataTooLong,
     
 }
