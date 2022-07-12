@@ -24,6 +24,7 @@ use sabaton_hal::bootloader::BootControl;
 use crate::uevent::{*};
 
 pub const VBMETA_PARTITION_NAME_WITHOUT_SUFFIX : &str = "/dev/block/by-name/vbmeta"; 
+pub const MISC_PARTITION_NAME : &str = "/dev/block/by-name/misc";
 
 macro_rules! c_str {
     ($s:expr) => {{

@@ -24,7 +24,9 @@
  * limitations under the License.
  */
 
-use std::{fmt::Display, io::Write, convert::TryFrom, ffi::CStr};
+use std::{fmt::Display, io::Write, convert::TryFrom, ffi::{CStr, CString}, os::unix::prelude::FileExt, mem::MaybeUninit};
+
+use crate::{mount::early_partitions::{ensure_mount_device_is_created, MISC_PARTITION_NAME}, uevent::create_and_bind_netlink_socket};
 
 use super::error::BootloaderMessageError;
 use c2rust_bitfields::BitfieldStruct;
@@ -174,6 +176,36 @@ impl BootloaderMessageAB {
         let ptr : *const BootloaderMessageAB = self;
         unsafe {std::slice::from_raw_parts(ptr as *const u8, std::mem::size_of::<BootloaderMessageAB>())}
     }
+
+    /// Read the contents of the MISC partition and create a BootloaderMessageAB structure from it
+    pub fn create_from_misc_partition() -> Result<BootloaderMessageAB,std::io::Error> {
+        let mut nl_socket =  create_and_bind_netlink_socket()?;
+
+        let misc_partition_name = CString::new(MISC_PARTITION_NAME)?;
+        ensure_mount_device_is_created(&misc_partition_name, &mut nl_socket)?;
+
+        let misc_partition_handle = std::fs::OpenOptions::new().read(true).open(MISC_PARTITION_NAME)?;
+
+        // create an uninitialized BootloaderMessageAB structure
+        let mut bootloader_message_ab: MaybeUninit<BootloaderMessageAB> = MaybeUninit::uninit();
+        let as_ptr = bootloader_message_ab.as_mut_ptr() as *mut u8;
+        let mut slice = unsafe {std::slice::from_raw_parts_mut(as_ptr as *mut  u8, std::mem::size_of::<BootloaderMessageAB>())};
+        assert_eq!(slice.len(),4096);
+
+        misc_partition_handle.read_exact_at(&mut slice,0)?;
+        unsafe {
+            Ok(bootloader_message_ab.assume_init())
+        }
+    }
+
+    /// Store the contents into the first 4KB of the Misc Partition
+    pub fn save_to_misc_partition(&mut self) -> Result<(),std::io::Error> {
+        let mut nl_socket =  create_and_bind_netlink_socket()?;
+        let misc_partition_name = CString::new(MISC_PARTITION_NAME)?;
+        ensure_mount_device_is_created(&misc_partition_name, &mut nl_socket)?;
+        let mut misc_partition_handle = std::fs::OpenOptions::new().write(true).truncate(true).open(MISC_PARTITION_NAME)?;
+        misc_partition_handle.write_all(self.as_slice())
+    }
     
 }
 
@@ -252,6 +284,7 @@ impl Display for SlotMetadata {
         write!(f,"Priority:{} TriesRemaining:{} SuccessfulBoot:{} VerityCorrupted:{}", self.priority(),self.tries_remaining(),self.successful_boot(),self.verity_corrupted())
     }
 }
+
 
 #[cfg(test)]
 mod test {
