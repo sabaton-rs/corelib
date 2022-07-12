@@ -119,6 +119,70 @@ struct BootloaderMessageAB {
     reserved:[u8;1888],
 }
 
+#[repr(C,packed)]
+struct BootloaderControl{
+    // NUL terminated active slot suffix.
+    pub slot_suffix: [u8;4],
+    // Bootloader Control AB magic number (see BOOT_CTRL_MAGIC).
+    pub magic:u32,
+    version:u8,
+    // Number of slots being managed.
+    bitfield1 : u8,
+    //uint8_t nb_slot : 3;
+    // Number of times left attempting to boot recovery.
+   // uint8_t recovery_tries_remaining : 3;
+    // Ensure 4-bytes alignment for slot_info field.
+   // uint8_t reserved0[2];
+    // Per-slot information.  Up to 4 slots.
+    slot_info:[SlotMetadata;4],
+    // Reserved for further use.
+    reserved1:[u8;8],
+    // CRC32 of all 28 bytes preceding this field (little endian
+    // format).
+    crc32_le:u32,
+
+}
+#[derive(Debug)]
+#[repr(C,packed)]
+struct SlotMetadata {
+    // Slot priority with 15 meaning highest priority, 1 lowest
+    // priority and 0 the slot is unbootable.
+    bitfield1 : u8,
+    //uint8_t priority : 4;
+    // Number of times left attempting to boot this slot.
+    //uint8_t tries_remaining : 3;
+    // 1 if this slot has booted successfully, 0 otherwise.
+    //uint8_t successful_boot : 1;
+    // 1 if this slot is corrupted from a dm-verity corruption, 0
+    // otherwise.
+    bitfield2 : u8,
+    //uint8_t verity_corrupted : 1;
+    // Reserved for further use.
+    //uint8_t reserved : 7;
+} 
+/*
+struct bootloader_control {
+    
+    char slot_suffix[4];
+    // Bootloader Control AB magic number (see BOOT_CTRL_MAGIC).
+    uint32_t magic;
+    // Version of struct being used (see BOOT_CTRL_VERSION).
+    uint8_t version;
+    // Number of slots being managed.
+    uint8_t nb_slot : 3;
+    // Number of times left attempting to boot recovery.
+    uint8_t recovery_tries_remaining : 3;
+    // Ensure 4-bytes alignment for slot_info field.
+    uint8_t reserved0[2];
+    // Per-slot information.  Up to 4 slots.
+    struct slot_metadata slot_info[4];
+    // Reserved for further use.
+    uint8_t reserved1[8];
+    // CRC32 of all 28 bytes preceding this field (little endian
+    // format).
+    uint32_t crc32_le;
+}
+*/
 #[cfg(test)]
 mod test {
 
@@ -135,9 +199,11 @@ mod test {
         let mut bolo_message_ab = bytes as  *const  BootloaderMessageAB;
         let bolo_message_ab = unsafe {bolo_message_ab.as_ref().unwrap()};
 
-        let slot_suffix = bolo_message_ab.slot_suffix;
-
-        println!("BootloaderControl bytes:{:?}",slot_suffix);
+        let slot_suffix = bolo_message_ab.slot_suffix.as_ptr();
+        let mut bolo_control = slot_suffix as  *const  BootloaderControl;
+        let bolo_message_ab = unsafe {bolo_control.as_ref().unwrap()};
+        println!("BootloaderControl bytes:{:?}",bolo_message_ab.bitfield1);
+        println!("BootloaderControl bytes:{:?}",bolo_message_ab.slot_info);
     }
 
 }
