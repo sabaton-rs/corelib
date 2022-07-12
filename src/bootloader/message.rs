@@ -192,7 +192,9 @@ impl TryFrom<&[u8]> for &BootloaderMessageAB {
 }
 
 
-#[derive(Clone,Copy)]
+
+#[derive(Debug,Clone,Copy)]
+#[derive(BitfieldStruct)]
 #[repr(C,packed)]
 pub struct BootloaderControl{
     // NUL terminated active slot suffix.
@@ -201,10 +203,10 @@ pub struct BootloaderControl{
     pub magic:u32,
     version:u8,
     // Number of slots being managed.
-    bitfield1 : u8,
-    //uint8_t nb_slot : 3;
-    // Number of times left attempting to boot recovery.
-   // uint8_t recovery_tries_remaining : 3;
+    #[bitfield(name="nb_slot", ty="u8", bits="0..=3")]
+    // Number of times left attempting to boot recovery
+    #[bitfield(name="recovery_tries_remaining", ty="u8", bits="4..=6")]
+    bitfield1 : [u8;1],
     // Ensure 4-bytes alignment for slot_info field.
     reserved0: [u8;2],
     // Per-slot information.  Up to 4 slots.
@@ -281,9 +283,9 @@ mod test {
         assert_eq!(ctrl.slot_info[2].verity_corrupted(),0);
         assert_eq!(ctrl.slot_info[3].verity_corrupted(),0);
 
-        //for s in ctrl.slot_info.as_ref().iter() {
-        //    println!("SlotMetadata:{:?}",s.to_string());
-        //}
+        for s in ctrl.slot_info.as_ref().iter() {
+            println!("SlotMetadata:{:?}",s.to_string());
+        }
 
         let mut copy = bolo_message_ab.clone();
         let original_as_slice = copy.as_slice();
@@ -291,9 +293,9 @@ mod test {
 
         let mut control = copy.get_bootloader_control_mut().unwrap();
         control.slot_info[0].set_successful_boot(1);
-        //for s in control.slot_info.as_ref().iter() {
-        //    println!("SlotMetadata:{:?}",s.to_string());
-        //}
+        for s in control.slot_info.as_ref().iter() {
+            println!("SlotMetadata:{:?}",s.to_string());
+        }
         
         let slice = copy.as_slice();
         assert_eq!(slice.len(),4096);
