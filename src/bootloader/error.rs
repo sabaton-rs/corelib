@@ -10,5 +10,4 @@ pub enum BootloaderMessageError {
     InsufficientBytes,
     #[error("Data too long")]
     DataTooLong,
-    
 }

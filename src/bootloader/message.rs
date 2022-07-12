@@ -279,7 +279,7 @@ impl BootloaderControl {
     pub fn slot_suffix(&self) -> Result<&CStr, BootloaderMessageError> {
         let slot_suffix_bytes = self.slot_suffix.as_slice();
         if let Some(null_position) = slot_suffix_bytes.iter().position(|d| *d == 0) {
-            let slot_suffix = CStr::from_bytes_with_nul(&slot_suffix_bytes[0..null_position+1])
+            let slot_suffix = CStr::from_bytes_with_nul(&slot_suffix_bytes[0..null_position + 1])
                 .map_err(|_e| BootloaderMessageError::DataTooLong)?;
             Ok(slot_suffix)
         } else {

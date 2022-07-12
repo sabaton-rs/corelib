@@ -1,16 +1,16 @@
 /*
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+      http://www.apache.org/licenses/LICENSE-2.0
 
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
- */
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 
 use std::{
     ffi::{CStr, CString},
@@ -19,12 +19,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::uevent::*;
 use crate::{fstab::*, mount::verity::Dm};
 use sabaton_hal::bootloader::BootControl;
-use crate::uevent::{*};
 
-pub const VBMETA_PARTITION_NAME_WITHOUT_SUFFIX : &str = "/dev/block/by-name/vbmeta"; 
-pub const MISC_PARTITION_NAME : &str = "/dev/block/by-name/misc";
+pub const VBMETA_PARTITION_NAME_WITHOUT_SUFFIX: &str = "/dev/block/by-name/vbmeta";
+pub const MISC_PARTITION_NAME: &str = "/dev/block/by-name/misc";
 
 macro_rules! c_str {
     ($s:expr) => {{
@@ -35,10 +35,10 @@ macro_rules! c_str {
 /// The location of the fstab
 pub const FSTAB_LOCATION: &str = "/etc/fstab";
 
-fn should_prepare_verity(fstab_entries : &[FsEntry]) -> bool {
+fn should_prepare_verity(fstab_entries: &[FsEntry]) -> bool {
     for entry in fstab_entries {
         if entry.is_verity_protected() && entry.is_first_stage_mount() {
-            return true
+            return true;
         }
     }
     false
@@ -55,29 +55,25 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
     let mut socket = create_and_bind_netlink_socket().unwrap();
     let mut next_dm_index = 0;
 
-    
     let (mut dm, verity_partition_name) = if should_prepare_verity(&fstab_entries) {
         crate::mount::verity::load_dm().unwrap();
         // verity partition is called vbmeta_<suffix>
-        let verity_partition_name = format!("{}_{}",VBMETA_PARTITION_NAME_WITHOUT_SUFFIX,suffix);
+        let verity_partition_name = format!("{}_{}", VBMETA_PARTITION_NAME_WITHOUT_SUFFIX, suffix);
         let c_verity_partition_name = CString::new(verity_partition_name.as_str())?;
-        ensure_mount_device_is_created(&c_verity_partition_name, &mut socket)
-            .map_err(|e|{
-                log::error!("Cannot create device for {}",verity_partition_name);
-                e
-            })?;
-        let dm = Dm::new(Path::new(&verity_partition_name))
-            .map_err(|e| {
-                log::error!("DM setup error");
-                std::io::Error::from(std::io::ErrorKind::Other)
-            })?;
-        
-            log::info!("DM Open Success");
-            (Some(dm), Some(PathBuf::from(verity_partition_name)))
+        ensure_mount_device_is_created(&c_verity_partition_name, &mut socket).map_err(|e| {
+            log::error!("Cannot create device for {}", verity_partition_name);
+            e
+        })?;
+        let dm = Dm::new(Path::new(&verity_partition_name)).map_err(|e| {
+            log::error!("DM setup error");
+            std::io::Error::from(std::io::ErrorKind::Other)
+        })?;
+
+        log::info!("DM Open Success");
+        (Some(dm), Some(PathBuf::from(verity_partition_name)))
     } else {
         (None, None)
     };
-    
 
     log::debug!("Fstab entries:{:?}", fstab_entries);
     let root_cmp = CString::new("/").unwrap();
@@ -88,11 +84,14 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
         } else {
             let mut count = 5;
             while count > 0 {
-                if ensure_mount_device_is_created(root.fs_spec.as_c_str(), &mut socket).is_ok() { 
+                if ensure_mount_device_is_created(root.fs_spec.as_c_str(), &mut socket).is_ok() {
                     log::info!("early mount devices created");
                     break;
                 } else {
-                    log::info!("early mount devices not ready. will retry {} more time(s)", count);
+                    log::info!(
+                        "early mount devices not ready. will retry {} more time(s)",
+                        count
+                    );
                     std::thread::sleep(std::time::Duration::from_millis(1));
                     count -= 1;
                 }
@@ -105,9 +104,14 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             if root.is_verity_protected() {
                 let dm_device = format!("dm-{}", next_dm_index);
                 next_dm_index += 1;
-                create_dm_device(root, dm.as_mut().unwrap(), verity_partition_name.as_ref().unwrap(),&dm_device)?;
-                let device = create_dm_device_entry(&dm_device,&mut socket)?;
-                let mut e = root.clone();        
+                create_dm_device(
+                    root,
+                    dm.as_mut().unwrap(),
+                    verity_partition_name.as_ref().unwrap(),
+                    &dm_device,
+                )?;
+                let device = create_dm_device_entry(&dm_device, &mut socket)?;
+                let mut e = root.clone();
                 e.fs_spec = CString::new(device.to_str().unwrap()).unwrap();
                 mount_partition(&e)?;
             } else {
@@ -115,7 +119,6 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             }
             // switch it back so we won't attempt to mount it again
             root.mountpoint = root_cmp.clone();
-            
         }
     } else {
         log::error!("Could not find '/' directory in fstab. fatal");
@@ -132,13 +135,18 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
             continue;
         }
         ensure_mount_device_is_created(e.fs_spec.as_c_str(), &mut socket)?;
-        
+
         if e.is_verity_protected() {
             let dm_device = format!("dm-{}", next_dm_index);
             next_dm_index += 1;
-            create_dm_device(&e, dm.as_mut().unwrap(), verity_partition_name.as_ref().unwrap(),&dm_device)?;
-            let device = create_dm_device_entry(&dm_device,&mut socket)?;
-            let mut e = e.clone();        
+            create_dm_device(
+                &e,
+                dm.as_mut().unwrap(),
+                verity_partition_name.as_ref().unwrap(),
+                &dm_device,
+            )?;
+            let device = create_dm_device_entry(&dm_device, &mut socket)?;
+            let mut e = e.clone();
             e.fs_spec = CString::new(device.to_str().unwrap()).unwrap();
             mount_partition(&e)?;
         } else {
@@ -148,17 +156,17 @@ pub fn mount_early_partitions(boot_hal: &mut dyn BootControl) -> Result<(), std:
     Ok(())
 }
 
-
 /// Create a device manager device entry
 /// device_name indicates thethe dm device created
 /// for example dm-0, dm-1, etc.
 /// Returns the  path to the device that is created.
-fn create_dm_device_entry(device_name: &str,mut nl_socket: &mut NLSocket) -> Result<PathBuf, std::io::Error> {
+fn create_dm_device_entry(
+    device_name: &str,
+    mut nl_socket: &mut NLSocket,
+) -> Result<PathBuf, std::io::Error> {
+    let device = PathBuf::from(format!("/sys/block/{}", device_name));
+    log::debug!("Create DM device for {}", device.display());
 
-    let device = PathBuf::from(format!("/sys/block/{}",device_name));
-    log::debug!("Create DM device for {}",device.display());
-
-    
     let _action = regenerate_uevent_for_dir(&device, &mut nl_socket, &mut |e| {
         //log::debug!("Event {:?}", e);
 
@@ -177,7 +185,7 @@ fn create_dm_device_entry(device_name: &str,mut nl_socket: &mut NLSocket) -> Res
         }
     });
 
-    let device  = Path::new("/dev/block").join(device_name);
+    let device = Path::new("/dev/block").join(device_name);
 
     if !device.exists() {
         log::error!("{} device entry not created", device_name);
@@ -197,7 +205,7 @@ pub fn ensure_mount_device_is_created(
     log::debug!("ensure dev created for : {}", path.display());
     // we allow early mounting of tmpfs
     if path == Path::new("tmpfs") {
-        return Ok(())
+        return Ok(());
     }
 
     if !path.starts_with("/dev/block") {
@@ -249,7 +257,7 @@ pub fn ensure_mount_device_is_created(
         });
 
         if device_is_by_name {
-            if !Path::new("/dev/block/by-name").join(&device_name).exists() { 
+            if !Path::new("/dev/block/by-name").join(&device_name).exists() {
                 return Err(Error::new(std::io::ErrorKind::NotFound, "path not found"));
             }
         } else if !Path::new("/dev/block").join(&device_name).exists() {
@@ -262,16 +270,22 @@ pub fn ensure_mount_device_is_created(
 }
 
 // Mount a verity protected partition
-fn create_dm_device(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path, name: &str) -> Result<(), std::io::Error> {
-
+fn create_dm_device(
+    entry: &FsEntry,
+    dm: &mut Dm,
+    verity_partition: &Path,
+    name: &str,
+) -> Result<(), std::io::Error> {
     let protected_partition = Path::new(entry.fs_spec.to_str().unwrap());
     //let name = protected_partition.file_name().unwrap();
     //let name = format!("verified-{}",name.to_str().unwrap());
     //let name = format!("dm-{}","0");
-    dm.create_dm_device(Path::new(&entry.fs_spec.to_str().unwrap()), verity_partition, name)
-        .map_err(|e|{
-            std::io::Error::from(std::io::ErrorKind::PermissionDenied)
-        })?;
+    dm.create_dm_device(
+        Path::new(&entry.fs_spec.to_str().unwrap()),
+        verity_partition,
+        name,
+    )
+    .map_err(|e| std::io::Error::from(std::io::ErrorKind::PermissionDenied))?;
 
     Ok(())
     //let mut e = entry.clone();
@@ -286,10 +300,11 @@ fn create_dm_device(entry:&FsEntry, dm : &mut Dm, verity_partition: &Path, name:
 fn mount_partition(entry: &FsEntry) -> Result<(), std::io::Error> {
     log::debug!(
         "Going to mount {:?} to {:?} type:{:?}",
-        &entry.fs_spec, &entry.mountpoint, &entry.vfs_type
+        &entry.fs_spec,
+        &entry.mountpoint,
+        &entry.vfs_type
     );
 
-    
     let ret = unsafe {
         libc::mount(
             entry.fs_spec.as_ptr(),
@@ -317,7 +332,8 @@ fn switch_to_new_root(new_root: &CStr) -> Result<(), std::io::Error> {
     let root_str = new_root.to_str().unwrap();
     // get existing mounts and move them
     for mount in get_all_mounts(new_root) {
-        let new_mount_path = Path::new(root_str).join(mount.to_str().unwrap().trim_start_matches('/'));
+        let new_mount_path =
+            Path::new(root_str).join(mount.to_str().unwrap().trim_start_matches('/'));
         log::debug!("New move path:{}", &new_mount_path.display());
         let mut buf = Vec::new();
         buf.extend(new_mount_path.as_os_str().as_bytes());
@@ -326,8 +342,7 @@ fn switch_to_new_root(new_root: &CStr) -> Result<(), std::io::Error> {
         //if res != 0 {
         //    // ok to fail here if the directory already exists
         //    log::debug!("mkdir failed:{} error:{}",new_mount_path.display(), unsafe {*libc::__errno_location()});
-        //} 
-        
+        //}
 
         let res = unsafe {
             libc::mount(
@@ -340,7 +355,12 @@ fn switch_to_new_root(new_root: &CStr) -> Result<(), std::io::Error> {
         };
 
         if res != 0 {
-            log::error!("Unable to move {:?} mount to {}:{}", mount, &new_mount_path.display(), unsafe{*libc::__errno_location()});
+            log::error!(
+                "Unable to move {:?} mount to {}:{}",
+                mount,
+                &new_mount_path.display(),
+                unsafe { *libc::__errno_location() }
+            );
         } else {
             log::debug!("Moved {:?} to {:?}", mount, &new_mount_path);
         }

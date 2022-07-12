@@ -1,12 +1,10 @@
-
-
-use std::convert::From;
 use crate::error::CoreError;
+use std::convert::From;
 
 /// A wrapper for uid_t
 pub struct DacId(libc::uid_t);
-/// 
-/// Ids used for DAC configuration. These ids are 
+///
+/// Ids used for DAC configuration. These ids are
 /// user and group ids defined by the Platform.
 /// These ids must not be changed
 pub enum PlatformDacIds {
@@ -93,7 +91,6 @@ pub enum PlatformDacIds {
     ExternalStorage = 1077,
     LifecycleManager = 1078,
 
-
     Shell = 2000,
     Cache = 2001,
     Diagnostics = 2002,
@@ -113,13 +110,11 @@ pub enum PlatformDacIds {
     Misc = 9998,
     Nobody = 9999,
 
-
     IsolatedProcessIdStart = 90000,
     IsolatedProcessIdEnd = 99999,
 
-    UserStart   = 100000,
-    UserEnd     = 900000,
-
+    UserStart = 100000,
+    UserEnd = 900000,
 }
 
 impl DacId {
@@ -135,8 +130,7 @@ impl From<PlatformDacIds> for DacId {
 }
 
 impl PlatformDacIds {
-    pub fn get_oem_id(offset:u32) -> Result<DacId, CoreError> {
-
+    pub fn get_oem_id(offset: u32) -> Result<DacId, CoreError> {
         let id = PlatformDacIds::OdmReservedStart as u32 + offset;
         if id <= PlatformDacIds::OdmReservedEnd as u32 {
             Ok(DacId(id))
@@ -145,8 +139,7 @@ impl PlatformDacIds {
         }
     }
 
-    pub fn get_system_id(offset:u32) -> Result<DacId, CoreError> {
-
+    pub fn get_system_id(offset: u32) -> Result<DacId, CoreError> {
         let id = PlatformDacIds::SystemReservedStart as u32 + offset;
         if id <= PlatformDacIds::SystemReservedEnd as u32 {
             Ok(DacId(id))
@@ -155,8 +148,7 @@ impl PlatformDacIds {
         }
     }
 
-    pub fn get_odm_id(offset:u32) -> Result<DacId, CoreError> {
-
+    pub fn get_odm_id(offset: u32) -> Result<DacId, CoreError> {
         let id = PlatformDacIds::OdmReservedStart as u32 + offset;
         if id <= PlatformDacIds::OdmReservedEnd as u32 {
             Ok(DacId(id))
@@ -165,8 +157,7 @@ impl PlatformDacIds {
         }
     }
 
-    pub fn get_isolated_id(offset:u32) -> Result<DacId, CoreError> {
-
+    pub fn get_isolated_id(offset: u32) -> Result<DacId, CoreError> {
         let id = PlatformDacIds::IsolatedProcessIdStart as u32 + offset;
         if id <= PlatformDacIds::IsolatedProcessIdEnd as u32 {
             Ok(DacId(id))
@@ -175,8 +166,7 @@ impl PlatformDacIds {
         }
     }
 
-    pub fn get_user_id(offset:u32) -> Result<DacId, CoreError> {
-
+    pub fn get_user_id(offset: u32) -> Result<DacId, CoreError> {
         let id = PlatformDacIds::UserStart as u32 + offset;
         if id <= PlatformDacIds::UserEnd as u32 {
             Ok(DacId(id))
@@ -184,5 +174,4 @@ impl PlatformDacIds {
             Err(CoreError::InputOutOfRange)
         }
     }
-
 }

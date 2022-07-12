@@ -1,26 +1,29 @@
 /*
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+      http://www.apache.org/licenses/LICENSE-2.0
 
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
- */
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 
 use libc::c_ulong;
 use log::{debug, trace};
-use std::{ffi::{CStr, CString}, io::{Error}, path::PathBuf};
+use std::{
+    ffi::{CStr, CString},
+    io::Error,
+    path::PathBuf,
+};
 
 use std::str::FromStr;
 
-
 /// FsManagerFlags
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum FsManagerFlags {
     /// Mount this partition during early boot
     FirstStageMount,
@@ -45,12 +48,12 @@ impl FromStr for FsManagerFlags {
             "first_stage_mount" => Ok(FsManagerFlags::FirstStageMount),
             "verity" => Ok(FsManagerFlags::Verity),
             "logical" => Ok(FsManagerFlags::Logical),
-            _ => Ok(FsManagerFlags::Other(String::from(s)))
+            _ => Ok(FsManagerFlags::Other(String::from(s))),
         }
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct FsEntry {
     /// The device identifier
     pub fs_spec: CString,
@@ -67,8 +70,7 @@ pub struct FsEntry {
 }
 
 impl FsEntry {
-
-    pub fn parse_entries(contents: &str, slot_suffix:&str) -> Result<Vec<FsEntry>, Error> {
+    pub fn parse_entries(contents: &str, slot_suffix: &str) -> Result<Vec<FsEntry>, Error> {
         let mut entries: Vec<FsEntry> = Vec::new();
         //let mut contents = String::new();
         //file.read_to_string(&mut contents)?;
@@ -84,10 +86,17 @@ impl FsEntry {
                 continue;
             }
 
-            let flags : Vec<FsManagerFlags> = parts[4].split(",").map(|s| FsManagerFlags::from_str(s).unwrap()).collect();            
+            let flags: Vec<FsManagerFlags> = parts[4]
+                .split(",")
+                .map(|s| FsManagerFlags::from_str(s).unwrap())
+                .collect();
 
-            let fs_spec = if flags.iter().find(|f| matches!(f,FsManagerFlags::SlotSelect)).is_some() {
-                let full_spec = format!("{}_{}",parts[0],slot_suffix);
+            let fs_spec = if flags
+                .iter()
+                .find(|f| matches!(f, FsManagerFlags::SlotSelect))
+                .is_some()
+            {
+                let full_spec = format!("{}_{}", parts[0], slot_suffix);
                 CString::new(full_spec).unwrap()
             } else {
                 CString::new(parts[0]).unwrap()
@@ -97,7 +106,6 @@ impl FsEntry {
             for p in parts[3].split(",") {
                 mount_options |= Self::get_mount_option(p);
             }
-
 
             let entry = FsEntry {
                 fs_spec,
@@ -111,14 +119,14 @@ impl FsEntry {
         Ok(entries)
     }
 
-    fn get_mount_option(option:&str) -> libc::c_ulong {
+    fn get_mount_option(option: &str) -> libc::c_ulong {
         match option {
             "ro" => libc::MS_RDONLY,
-            "rw" => 0,  // default is read/write so nothing to do here
+            "rw" => 0, // default is read/write so nothing to do here
             "dirsync" => libc::MS_DIRSYNC,
             "lazytime" => libc::MS_LAZYTIME,
             "mandlock" => libc::MS_MANDLOCK,
-            "noatime"   => libc::MS_NOATIME,
+            "noatime" => libc::MS_NOATIME,
             "nodev" => libc::MS_NODEV,
             "nodiratime" => libc::MS_NODIRATIME,
             "noexec" => libc::MS_NOEXEC,
@@ -131,36 +139,36 @@ impl FsEntry {
     }
 
     pub fn is_first_stage_mount(&self) -> bool {
-        for flag in  self.fs_manager_flags.iter() {
+        for flag in self.fs_manager_flags.iter() {
             if let FsManagerFlags::FirstStageMount = flag {
-                return true
+                return true;
             }
         }
         false
     }
 
     pub fn is_slot_selected(&self) -> bool {
-        for flag in  self.fs_manager_flags.iter() {
+        for flag in self.fs_manager_flags.iter() {
             if let FsManagerFlags::SlotSelect = flag {
-                return true
+                return true;
             }
         }
         false
     }
 
     pub fn is_logical(&self) -> bool {
-        for flag in  self.fs_manager_flags.iter() {
+        for flag in self.fs_manager_flags.iter() {
             if let FsManagerFlags::Logical = flag {
-                return true
+                return true;
             }
         }
         false
     }
 
     pub fn is_verity_protected(&self) -> bool {
-        for flag in  self.fs_manager_flags.iter() {
+        for flag in self.fs_manager_flags.iter() {
             if let FsManagerFlags::Verity = flag {
-                return true
+                return true;
             }
         }
         false
@@ -181,8 +189,6 @@ mod test {
 /dev/block/by-name/data             /data       ext2    rw,noauto,nouser    first_stage_mount
 "###;
 
-        let _entries = FsEntry::parse_entries(&fstab,"a");
-
+        let _entries = FsEntry::parse_entries(&fstab, "a");
     }
-
 }

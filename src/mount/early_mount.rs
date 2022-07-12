@@ -1,16 +1,13 @@
+use crate::ids;
+use libc::umask;
 use std::ffi::CStr;
 use std::ffi::CString;
-use libc::umask;
-use crate::ids;
 
 use crate::c_str;
-
-
 
 /// Perform the early mounts of the system. These are the minimum
 /// needed mounts to get started. Call this early in the initrd.
 pub fn early_mount() -> Vec<String> {
-
     let mut errors = Vec::new();
 
     unsafe {
@@ -64,7 +61,10 @@ pub fn early_mount() -> Vec<String> {
             data.as_ptr() as *const libc::c_void,
         );
         if 0 != err {
-            errors.push(format!("mount proc failed:{} (Is it enabled in the Kernel?) ", *libc::__errno_location()));
+            errors.push(format!(
+                "mount proc failed:{} (Is it enabled in the Kernel?) ",
+                *libc::__errno_location()
+            ));
         }
 
         let err = libc::chmod(c_str!("/proc/cmdline"), 0o440);
@@ -209,7 +209,7 @@ pub fn early_mount() -> Vec<String> {
             c_str!("tmpfs"),
             c_str!("/idex"),
             c_str!("tmpfs"),
-              libc::MS_NOSUID,
+            libc::MS_NOSUID,
             c_str!("mode=0755,uid=0,gid=1000") as *const libc::c_void,
         );
         if 0 != err {
@@ -229,24 +229,24 @@ pub fn early_mount() -> Vec<String> {
             std::ptr::null(),
         );
         if 0 != err {
-            errors.push(format!("bind mount of /new_root to itself failed:{}", *libc::__errno_location()));
+            errors.push(format!(
+                "bind mount of /new_root to itself failed:{}",
+                *libc::__errno_location()
+            ));
         }
 
         create_dev_mapper_device_entry(&mut errors);
-
     }
     errors
-
 }
 
-fn create_dev_mapper_device_entry(errors : &mut Vec<String>) {
-    
+fn create_dev_mapper_device_entry(errors: &mut Vec<String>) {
     let proc_misc = std::fs::read_to_string("/proc/misc").unwrap();
     let mut lines = proc_misc.lines();
 
-    let dev_mapper_minor : Option<u32> = lines.find_map(|e| {
+    let dev_mapper_minor: Option<u32> = lines.find_map(|e| {
         let mut split_iter = e.trim().split(' ');
-        let (minor,device) = (split_iter.next().unwrap(), split_iter.next().unwrap());
+        let (minor, device) = (split_iter.next().unwrap(), split_iter.next().unwrap());
         if device == "device-mapper" {
             let minor = minor.parse::<u32>().expect("Cannot parse minor number");
             Some(minor)
@@ -267,36 +267,45 @@ fn create_dev_mapper_device_entry(errors : &mut Vec<String>) {
         );
         if 0 != err {
             errors.push("Error creating /dev/mapper/control".to_string());
-        }      
+        }
     }
-   
 }
-
 
 /// Lots of unsafe code used here as we need to operate at a very low level.
 /// Idea for this is from the Android init code.
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub fn cleanup_ramdisk(dir : *mut libc::DIR, dev : u64) {
+pub fn cleanup_ramdisk(dir: *mut libc::DIR, dev: u64) {
     if !dir.is_null() {
         log::info!("Cleaning up RAMDISK");
-        let dfd = unsafe{libc::dirfd(dir)};
+        let dfd = unsafe { libc::dirfd(dir) };
 
         loop {
-            let mut de = unsafe{libc::readdir(dir)};
-            if de.is_null() { break }
-            let de = unsafe{&mut*de};
+            let mut de = unsafe { libc::readdir(dir) };
+            if de.is_null() {
+                break;
+            }
+            let de = unsafe { &mut *de };
 
-            let dname = unsafe{CStr::from_ptr(de.d_name.as_ptr())};
-            if dname == unsafe{CStr::from_ptr(c_str!("."))} || dname == unsafe{CStr::from_ptr(c_str!(".."))}{
-                continue
-            } 
+            let dname = unsafe { CStr::from_ptr(de.d_name.as_ptr()) };
+            if dname == unsafe { CStr::from_ptr(c_str!(".")) }
+                || dname == unsafe { CStr::from_ptr(c_str!("..")) }
+            {
+                continue;
+            }
 
             let mut is_dir = false;
 
             if de.d_type == libc::DT_DIR || de.d_type == libc::DT_UNKNOWN {
-                let mut info : libc::stat = unsafe {std::mem::MaybeUninit::zeroed().assume_init()};
-                //let ptr = 
-                if 0 != unsafe{libc::fstatat(dfd, de.d_name.as_ptr(), &mut info as *mut libc::stat, libc::AT_SYMLINK_NOFOLLOW)} {
+                let mut info: libc::stat = unsafe { std::mem::MaybeUninit::zeroed().assume_init() };
+                //let ptr =
+                if 0 != unsafe {
+                    libc::fstatat(
+                        dfd,
+                        de.d_name.as_ptr(),
+                        &mut info as *mut libc::stat,
+                        libc::AT_SYMLINK_NOFOLLOW,
+                    )
+                } {
                     continue;
                 }
 
@@ -304,15 +313,18 @@ pub fn cleanup_ramdisk(dir : *mut libc::DIR, dev : u64) {
                     continue;
                 }
 
-                // TODO: recurse. Right now, only the /init is freed-up. This is the largest file anyway 
+                // TODO: recurse. Right now, only the /init is freed-up. This is the largest file anyway
             }
             // directory and subdir is cleaned up
             unsafe {
-            
-            let ret = libc::unlinkat(dfd, de.d_name.as_ptr(), if is_dir { libc::AT_REMOVEDIR} else { 0 });
-            //println!("deleting : {:?} {}", CStr::from_ptr(de.d_name.as_ptr()), ret);
+                let ret = libc::unlinkat(
+                    dfd,
+                    de.d_name.as_ptr(),
+                    if is_dir { libc::AT_REMOVEDIR } else { 0 },
+                );
+                //println!("deleting : {:?} {}", CStr::from_ptr(de.d_name.as_ptr()), ret);
             }
         }
-        unsafe{libc::closedir(dir)};
+        unsafe { libc::closedir(dir) };
     }
 }

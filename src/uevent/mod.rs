@@ -45,7 +45,6 @@ pub struct UEvent {
 }
 
 impl UEvent {
-
     pub fn get_devname(&self) -> Option<&str> {
         self.maybe_devname.as_ref().map(|s| s.as_str())
     }
@@ -101,7 +100,7 @@ impl fmt::Display for UEvent {
 impl TryFrom<&[u8]> for UEvent {
     type Error = &'static str;
     fn try_from(buf: &[u8]) -> Result<UEvent, Self::Error> {
-       // println!("Try from: {} bytes :{:?}", buf.len(), buf);
+        // println!("Try from: {} bytes :{:?}", buf.len(), buf);
         let lines = buf.split(|b| *b == 0u8).skip(1);
 
         let mut uevent = UEvent {
@@ -167,9 +166,7 @@ impl TryFrom<&[u8]> for UEvent {
                             .unwrap_or(0),
                     )
                 }
-                b"PARTNAME" => {
-                    uevent.maybe_partitionname = Some(sanitize_name(value))
-                }
+                b"PARTNAME" => uevent.maybe_partitionname = Some(sanitize_name(value)),
                 b"MODALIAS" => {
                     uevent.maybe_modalias = Some(String::from_utf8_lossy(value).to_string())
                 }
@@ -185,7 +182,7 @@ impl TryFrom<&[u8]> for UEvent {
     }
 }
 
-fn sanitize_name(input:&[u8]) -> String {
+fn sanitize_name(input: &[u8]) -> String {
     let allowed = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.";
     let mut sanitized = String::with_capacity(65);
     for i in input {
@@ -202,7 +199,7 @@ pub enum UEventGenerateAction {
     Continue,
 }
 
-const UEVENT_READ_BUFFER_SIZE: usize = 2048*5;
+const UEVENT_READ_BUFFER_SIZE: usize = 2048 * 5;
 pub struct NLSocket(Socket);
 
 pub fn create_and_bind_netlink_socket() -> Result<NLSocket, std::io::Error> {
@@ -309,7 +306,7 @@ pub fn read_uevent(socket: &mut Socket) -> Result<UEvent, Error> {
         }
         Err(e) => {
             if e != nix::Error::Sys(Errno::EAGAIN) && e != nix::Error::Sys(Errno::EINTR) {
-                log::error!("reading uevent failed:{}",e);
+                log::error!("reading uevent failed:{}", e);
             } else {
                 log::error!("Error reading uvent {}", e);
             }
@@ -328,9 +325,8 @@ pub fn regenerate_uevent_for_dir(
     socket: &mut NLSocket,
     cb: &mut dyn FnMut(&UEvent) -> UEventGenerateAction,
 ) -> UEventGenerateAction {
-
     // don't go deeper than 4 elements in the path
-    // /sys/class/block/vda4 
+    // /sys/class/block/vda4
 
     if !dir.is_dir() || dir.components().count() > 5 {
         return UEventGenerateAction::Continue;
@@ -344,12 +340,12 @@ pub fn regenerate_uevent_for_dir(
             drop(file);
             //log::debug!(" Wrote to {} Going to read data", &entry_path.display());
 
-            let mut pollfd = [PollFd::new(socket.0.as_raw_fd(),PollFlags::POLLIN)];
+            let mut pollfd = [PollFd::new(socket.0.as_raw_fd(), PollFlags::POLLIN)];
 
             // drain the socket
             while let Ok(count) = nix::poll::poll(&mut pollfd, 5) {
                 if count == 0 {
-                    break
+                    break;
                 } else {
                     match read_uevent(&mut socket.0) {
                         Ok(uevent) => match cb(&uevent) {
@@ -371,8 +367,10 @@ pub fn regenerate_uevent_for_dir(
 
     for entry in WalkDir::new(dir).into_iter().filter_map(|e| {
         if let Ok(d) = e {
-            if !d.path().is_file() && d.path().join("uevent").is_file() && d.path().join("dev").is_file()
-                && d.path() != dir 
+            if !d.path().is_file()
+                && d.path().join("uevent").is_file()
+                && d.path().join("dev").is_file()
+                && d.path() != dir
             {
                 Some(d)
             } else {
@@ -391,9 +389,9 @@ pub fn regenerate_uevent_for_dir(
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use super::*;
-    
+    use std::path::PathBuf;
+
     //use crate::{create_and_bind_netlink_socket, regenerate_uevent_for_dir};
 
     #[test]
@@ -406,5 +404,3 @@ mod tests {
         });
     }
 }
-
-

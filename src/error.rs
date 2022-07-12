@@ -6,7 +6,7 @@ use thiserror::Error;
 pub struct ECode(i32);
 
 impl ECode {
-    pub fn from_raw_error(error:i32) -> Self {
+    pub fn from_raw_error(error: i32) -> Self {
         ECode(error)
     }
 }

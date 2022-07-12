@@ -1,13 +1,12 @@
 use crate::error::CoreError;
 pub struct InstanceSpecifier {
-    spec : String,
+    spec: String,
 }
 
 impl InstanceSpecifier {
-
-    pub fn from(instance:&str) -> Result<Self,CoreError> {
+    pub fn from(instance: &str) -> Result<Self, CoreError> {
         Ok(InstanceSpecifier {
-            spec : String::from(instance),
+            spec: String::from(instance),
         })
     }
 
@@ -15,4 +14,3 @@ impl InstanceSpecifier {
         &self.spec
     }
 }
-
