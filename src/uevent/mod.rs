@@ -285,10 +285,10 @@ pub fn read_uevent(socket: &mut Socket) -> Result<UEvent, Error> {
                 if add.groups() == 0 || add.pid() != 0 {
                     /* ignoring non-kernel or unicast netlink message */
                     log::debug!("add.groups({})  pid({})", add.groups(), add.pid());
-                    return Err(std::io::Error::new(
+                    Err(std::io::Error::new(
                         ErrorKind::PermissionDenied,
                         "Ignoring non-kernel or unicast netlink message",
-                    ));
+                    ))
                 } else {
                     match UEvent::try_from(&iov[0].as_slice()[..msg.bytes]) {
                         Ok(e) => Ok(e),
