@@ -9,6 +9,7 @@ pub mod fstab;
 pub mod uevent;
 pub mod mount;
 pub mod timesync;
+pub mod bootloader;
 
 mod service_id_lookup;
 pub use service_id_lookup::{ServiceId, id_of_service, is_platform_service_id};
