@@ -24,6 +24,9 @@
  * limitations under the License.
  */
 
+use super::error::BootloaderMessageError;
+use crc::{Crc, Algorithm, CRC_32_ISCSI, CRC_32_AIXM, CRC_32_AUTOSAR, CRC_32_BASE91_D, CRC_32_BZIP2, CRC_32_CD_ROM_EDC, CRC_32_CKSUM, CRC_32_ISO_HDLC};
+
 /// Spaces used by misc partition are as below:
 /// 0   - 2K     For bootloader_message
 /// 2K  - 16K    Used by Vendor's bootloader (the 2K - 4K range may be optionally used
@@ -65,7 +68,7 @@ pub const VENDOR_SPACE_OFFSET_IN_MISC: usize = 2 * 1024usize;
 ///
 #[derive(Debug)]
 #[repr(C, packed)]
-struct BootloaderMessage {
+pub struct BootloaderMessage {
     command : [u8;32],
     status : [u8;32],
     recovery: [u8;768],
@@ -111,7 +114,7 @@ struct BootloaderMessage {
 
 #[derive(Debug)]
 #[repr(C,packed)]
-struct BootloaderMessageAB {
+pub struct BootloaderMessageAB {
     pub message : BootloaderMessage,
     pub slot_suffix: [u8;32],
     pub update_channel :[u8;128],
@@ -119,8 +122,43 @@ struct BootloaderMessageAB {
     reserved:[u8;1888],
 }
 
+impl BootloaderMessageAB {
+    pub fn get_bootloader_control(&self) -> Result<&BootloaderControl,BootloaderMessageError> {
+        let crc32 : u32 = u32::from_ne_bytes([self.slot_suffix[28],self.slot_suffix[29],self.slot_suffix[30],self.slot_suffix[31]]);
+        let data = &self.slot_suffix[0..28];
+        let algo = Crc::<u32>::new(&CRC_32_ISO_HDLC);
+        let computed_checksum = algo.checksum(&data);
+
+        if crc32 != computed_checksum {
+            Err(BootloaderMessageError::CrcFailure)
+        } else {
+            let bolo_ctrl_ptr = data.as_ptr() as  *const  BootloaderControl;
+            let bolo_message_ab = unsafe {bolo_ctrl_ptr.as_ref().unwrap()}; 
+            Ok(bolo_message_ab)
+        }        
+    }
+
+
+    pub fn set_bootloader_control(&mut self, ctrl : &BootloaderControl) -> Result<(), BootloaderMessageError> {
+        todo!()
+    }
+
+     
+    /// Call this function to recompute the checksum
+    fn set_checksum(&mut self) {
+        let data = &self.slot_suffix[0..28];
+        let algo = Crc::<u32>::new(&CRC_32_ISO_HDLC);
+        let computed_checksum = algo.checksum(&data).to_ne_bytes();
+        self.slot_suffix[28] = computed_checksum[0];
+        self.slot_suffix[29] = computed_checksum[1];
+        self.slot_suffix[30] = computed_checksum[2];
+        self.slot_suffix[31] = computed_checksum[3];
+    }
+    
+}
+
 #[repr(C,packed)]
-struct BootloaderControl{
+pub struct BootloaderControl{
     // NUL terminated active slot suffix.
     pub slot_suffix: [u8;4],
     // Bootloader Control AB magic number (see BOOT_CTRL_MAGIC).
@@ -132,7 +170,7 @@ struct BootloaderControl{
     // Number of times left attempting to boot recovery.
    // uint8_t recovery_tries_remaining : 3;
     // Ensure 4-bytes alignment for slot_info field.
-   // uint8_t reserved0[2];
+    reserved0: [u8;2],
     // Per-slot information.  Up to 4 slots.
     slot_info:[SlotMetadata;4],
     // Reserved for further use.
@@ -160,29 +198,7 @@ struct SlotMetadata {
     // Reserved for further use.
     //uint8_t reserved : 7;
 } 
-/*
-struct bootloader_control {
-    
-    char slot_suffix[4];
-    // Bootloader Control AB magic number (see BOOT_CTRL_MAGIC).
-    uint32_t magic;
-    // Version of struct being used (see BOOT_CTRL_VERSION).
-    uint8_t version;
-    // Number of slots being managed.
-    uint8_t nb_slot : 3;
-    // Number of times left attempting to boot recovery.
-    uint8_t recovery_tries_remaining : 3;
-    // Ensure 4-bytes alignment for slot_info field.
-    uint8_t reserved0[2];
-    // Per-slot information.  Up to 4 slots.
-    struct slot_metadata slot_info[4];
-    // Reserved for further use.
-    uint8_t reserved1[8];
-    // CRC32 of all 28 bytes preceding this field (little endian
-    // format).
-    uint32_t crc32_le;
-}
-*/
+
 #[cfg(test)]
 mod test {
 
@@ -191,6 +207,8 @@ mod test {
     fn check_sizes() {
         assert_eq!(std::mem::size_of::<BootloaderMessage>(),2048);
         assert_eq!(std::mem::size_of::<BootloaderMessageAB>(),4096);
+        assert_eq!(std::mem::size_of::<SlotMetadata>(),2);
+        assert_eq!(std::mem::size_of::<BootloaderControl>(),32);
     }
 
     #[test]
@@ -199,13 +217,10 @@ mod test {
         let mut bolo_message_ab = bytes as  *const  BootloaderMessageAB;
         let bolo_message_ab = unsafe {bolo_message_ab.as_ref().unwrap()};
 
-        let slot_suffix = bolo_message_ab.slot_suffix.as_ptr();
-        let mut bolo_control = slot_suffix as  *const  BootloaderControl;
-        let bolo_message_ab = unsafe {bolo_control.as_ref().unwrap()};
-        println!("BootloaderControl bytes:{:?}",bolo_message_ab.bitfield1);
-        println!("BootloaderControl bytes:{:?}",bolo_message_ab.slot_info);
+
+        let ctrl = bolo_message_ab.get_bootloader_control().unwrap();
+
+        println!("BootloaderControl bytes:{:?}",ctrl.slot_info);
     }
 
 }
-
-//disk.img1      34   20513   20480   10M EFI System

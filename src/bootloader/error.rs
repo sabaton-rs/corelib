@@ -4,5 +4,7 @@ use thiserror::Error;
 pub enum BootloaderMessageError {
     #[error("Priority out of range")]
     PriorityOutOfRange,
+    #[error("CRC Error")]
+    CrcFailure,
     
 }
