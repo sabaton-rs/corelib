@@ -335,14 +335,14 @@ pub fn regenerate_uevent_for_dir(
     if !dir.is_dir() || dir.components().count() > 5 {
         return UEventGenerateAction::Continue;
     }
-    log::debug!("Regen for {}", dir.display());
+    //log::debug!("Regen for {}", dir.display());
 
     let entry_path = dir.join("uevent");
 
     if let Ok(mut file) = std::fs::OpenOptions::new().write(true).open(&entry_path) {
         if let Ok(()) = file.write_all("add\n".as_bytes()) {
             drop(file);
-            log::debug!(" Wrote to {} Going to read data", &entry_path.display());
+            //log::debug!(" Wrote to {} Going to read data", &entry_path.display());
 
             let mut pollfd = [PollFd::new(socket.0.as_raw_fd(),PollFlags::POLLIN)];
 
