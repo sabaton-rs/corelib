@@ -224,7 +224,7 @@ pub fn ensure_mount_device_is_created(
         //println!("Going to regen for {}", &search_path.display());
 
         let _action = regenerate_uevent_for_dir(&search_path, &mut nl_socket, &mut |e| {
-            log::debug!("Event {:?}", e);
+            //log::debug!("Event {:?}", e);
 
             // look for partition name if device is searched by name
             let matched = if device_is_by_name {
