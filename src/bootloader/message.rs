@@ -397,7 +397,7 @@ mod test {
         let suffix = String::from("b");
         let current_suffix = control.slot_suffix().unwrap();
         println!("Current slot is {:?}", current_suffix);
-        control.set_slot_suffix(&suffix);
+        control.set_slot_suffix(&suffix).unwrap();
         //for s in control.slot_info.as_ref().iter() {
         println!(
             "BootloaderControl after setting slot suffix:{:?}\n",
