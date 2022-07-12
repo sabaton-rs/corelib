@@ -73,8 +73,8 @@ pub fn handle_add<P>(event : &UEvent) -> Result<(),std::io::Error> where P : pal
         "net" => {
             todo!()
         }
-        _ => {
-            println!("Ignoring unknown subsystem");
+        any => {
+            log::debug!("Ignoring unknown subsystem : {}",any);
             Ok(())
         }
     }

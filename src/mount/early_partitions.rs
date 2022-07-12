@@ -159,7 +159,7 @@ fn create_dm_device_entry(device_name: &str,mut nl_socket: &mut NLSocket) -> Res
 
     
     let _action = regenerate_uevent_for_dir(&device, &mut nl_socket, &mut |e| {
-        log::debug!("Event {:?}", e);
+        //log::debug!("Event {:?}", e);
 
         // look for partition name if device is searched by name
         let matched = if let Some(p_name) = e.get_devname() {
