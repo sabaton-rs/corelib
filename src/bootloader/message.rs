@@ -265,7 +265,7 @@ pub struct BootloaderControl {
     // Ensure 4-bytes alignment for slot_info field.
     reserved0: [u8; 2],
     // Per-slot information.  Up to 4 slots.
-    slot_info: [SlotMetadata; 4],
+    pub slot_info: [SlotMetadata; 4],
     // Reserved for further use.
     reserved1: [u8; 8],
     // CRC32 of all 28 bytes preceding this field (little endian
@@ -303,7 +303,7 @@ impl BootloaderControl {
 
 #[derive(Debug, Clone, Copy, BitfieldStruct)]
 #[repr(C, packed)]
-struct SlotMetadata {
+pub struct SlotMetadata {
     // Slot priority with 15 meaning highest priority, 1 lowest
     // priority and 0 the slot is unbootable.
     #[bitfield(name = "priority", ty = "u8", bits = "0..=3")]
