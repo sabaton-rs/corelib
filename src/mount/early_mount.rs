@@ -14,9 +14,9 @@ pub fn early_mount() -> Vec<String> {
         umask(0);
 
         let err = libc::mount(
-            c_str!("tmpfs"),
+            c_str!("devtmpfs"),
             c_str!("/dev"),
-            c_str!("tmpfs"),
+            c_str!("devtmpfs"),
             libc::MS_NOSUID,
             c_str!("mode=0755") as *const libc::c_void,
         );
