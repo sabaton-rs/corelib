@@ -79,7 +79,7 @@ pub const VENDOR_SPACE_OFFSET_IN_MISC: usize = 2 * 1024usize;
 /// uncrypt. Move it into struct bootloader_message_ab to avoid the
 /// issue.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct BootloaderMessage {
     command: [u8; 32],
