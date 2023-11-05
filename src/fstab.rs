@@ -137,40 +137,25 @@ impl FsEntry {
         }
     }
 
+    #[inline]
+    pub fn is_flagged(&self, flag: FsManagerFlags) -> bool {
+        self.fs_manager_flags.iter().find(|f| f == flag)
+    }
+
     pub fn is_first_stage_mount(&self) -> bool {
-        for flag in self.fs_manager_flags.iter() {
-            if let FsManagerFlags::FirstStageMount = flag {
-                return true;
-            }
-        }
-        false
+        self.is_flagged(FsManagerFlags::FirstStageMount)
     }
 
     pub fn is_slot_selected(&self) -> bool {
-        for flag in self.fs_manager_flags.iter() {
-            if let FsManagerFlags::SlotSelect = flag {
-                return true;
-            }
-        }
-        false
+        self.is_flagged(FsManagerFlags::SlotSelect)
     }
 
     pub fn is_logical(&self) -> bool {
-        for flag in self.fs_manager_flags.iter() {
-            if let FsManagerFlags::Logical = flag {
-                return true;
-            }
-        }
-        false
+        self.is_flagged(FsManagerFlags::Logical)
     }
 
     pub fn is_verity_protected(&self) -> bool {
-        for flag in self.fs_manager_flags.iter() {
-            if let FsManagerFlags::Verity = flag {
-                return true;
-            }
-        }
-        false
+        self.is_flagged(FsManagerFlags::Verity)
     }
 }
 
